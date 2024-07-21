@@ -1,14 +1,15 @@
 plugins {
-	id 'java-library'
 	id 'eclipse'
 	id 'idea'
-	id 'net.neoforged.gradle.userdev' version '7.0.151'
+	id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+	id 'org.spongepowered.mixin' version '0.7.+'
+	id 'org.parchmentmc.librarian.forgegradle' version '1.+'
 }
 
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 
-version = '1.9.10-beta7'
+version = '1.9.10'
 group = 'net.geforcemods.securitycraft'
 
 base {
@@ -34,26 +35,47 @@ sourceSets.main.resources {
 	srcDir 'src/generated/resources' //include generated files
 }
 
-minecraft.accessTransformers.file rootProject.file('src/main/resources/META-INF/accesstransformer.cfg')
+minecraft {
+	mappings channel: 'parchment', version: '2024.07.18-1.21'
+	accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
+	copyIdeResources = true
 
-runs {
-	configureEach {
-		systemProperty 'forge.logging.console.level', 'debug'
-		modSource project.sourceSets.main
-	}
+	runs {
+		client {
+			workingDirectory project.file('run/client')
+			property 'forge.logging.console.level', 'debug'
+			args '-mixin.config=securitycraft.mixins.json'
 
-	client {
-		workingDirectory project.file('run/client')
-	}
+			mods {
+				securitycraft {
+					source sourceSets.main
+				}
+			}
+		}
 
-	server {
-		workingDirectory project.file('run/server')
-		programArgument '-nogui'
-	}
+		server {
+			workingDirectory project.file('run/server')
+			property 'forge.logging.console.level', 'debug'
+			args '-nogui', '-mixin.config=securitycraft.mixins.json'
 
-	data {
-		workingDirectory project.file('run/data')
-		programArguments.addAll '--mod', 'securitycraft', '--all', '--output', file('src/generated/resources/').getAbsolutePath()
+			mods {
+				securitycraft {
+					source sourceSets.main
+				}
+			}
+		}
+
+		data {
+			workingDirectory project.file('run/data')
+			property 'forge.logging.console.level', 'debug'
+			args '--mod', 'securitycraft', '--all', '--output', file('src/generated/resources/')
+
+			mods {
+				securitycraft {
+					source sourceSets.main
+				}
+			}
+		}
 	}
 }
 
@@ -67,20 +89,25 @@ repositories {
 }
 
 dependencies {
-	implementation 'net.neoforged:neoforge:21.0.76-beta'
+	minecraft 'net.minecraftforge:forge:1.21-51.0.26'
+	annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+	
+	implementation fg.deobf("curse.maven:architectury-api-419699:4581905") //ftb teams dependency
+	implementation fg.deobf("curse.maven:ftb-library-forge-404465:5051953") //ftb teams dependency
+	implementation fg.deobf("curse.maven:ftb-teams-forge-404468:4623116")
+	implementation fg.deobf("curse.maven:jei-238222:4597711")
+	implementation fg.deobf("curse.maven:the-one-probe-245211:4579432")
+	implementation fg.deobf("curse.maven:jade-324717:4573193")
+	implementation fg.deobf("curse.maven:betterf3-401648:4641169")
+	implementation fg.deobf("curse.maven:cloth-config-348521:4633444") //betterf3 dependency
+	implementation fg.deobf("curse.maven:wthit-forge-455982:4596739")
+	implementation fg.deobf("curse.maven:badpackets-615134:4438956") //wthit dependency
+	implementation fg.deobf("curse.maven:projecte-226410:4901949")
+	implementation fg.deobf("curse.maven:embeddium-908741:5077202")
+}
 
-	implementation "curse.maven:architectury-api-419699:5490620" //ftb teams dependency
-	implementation "curse.maven:ftb-library-forge-404465:5482367" //ftb teams dependency
-	implementation "curse.maven:ftb-teams-forge-404468:5448371"
-	implementation "curse.maven:jei-238222:5509528"
-	implementation "curse.maven:the-one-probe-245211:5502323"
-	implementation "curse.maven:jade-324717:5493270"
-	implementation "curse.maven:betterf3-401648:5439910"
-	implementation "curse.maven:cloth-config-348521:5424576" //betterf3 dependency
-	implementation "curse.maven:wthit-forge-455982:5481222"
-	implementation "curse.maven:badpackets-615134:5430629" //wthit dependency
-//	implementation "curse.maven:projecte-226410:3955047"
-	implementation "curse.maven:embeddium-908741:5503381"
+mixin {
+	add sourceSets.main, "securitycraft.refmap.json"
 }
 
 tasks.named('jar', Jar).configure {
@@ -92,7 +119,8 @@ tasks.named('jar', Jar).configure {
 					"Specification-Version": "${version}",
 					"Implementation-Title": "SecurityCraft",
 					"Implementation-Version": "${version}",
-					"Implementation-Vendor": "Geforce, bl4ckscor3, Redstone_Dubstep"],)
+					"Implementation-Vendor": "Geforce, bl4ckscor3, Redstone_Dubstep",
+					"MixinConfigs": "securitycraft.mixins.json"],)
 	}
 }
 

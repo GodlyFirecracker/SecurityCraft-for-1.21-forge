@@ -7,13 +7,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-import net.geforcemods.securitycraft.SCContent;
-import net.geforcemods.securitycraft.components.ListModuleData;
 import net.geforcemods.securitycraft.items.ModuleItem;
 import net.geforcemods.securitycraft.misc.ModuleType;
-import net.geforcemods.securitycraft.util.Utils;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -24,7 +20,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.neoforged.neoforge.items.IItemHandlerModifiable;
+import net.minecraftforge.items.IItemHandlerModifiable;
 
 /**
  * Let your object implement this to be able to add modules to it
@@ -233,7 +229,7 @@ public interface IModuleInventory extends IItemHandlerModifiable {
 		ItemStack previous = getModuleInSlot(slot);
 
 		//Prevent module from being removed and re-added when the slot initializes
-		if (ItemStack.matches(previous, stack))
+		if (previous.equals(stack, false))
 			return;
 
 		//call the correct methods, should there have been a module in the slot previously
@@ -352,11 +348,13 @@ public interface IModuleInventory extends IItemHandlerModifiable {
 		NonNullList<ItemStack> modules = getInventory();
 
 		for (int i = 0; i < modules.size(); i++) {
-			if (!modules.get(i).isEmpty() && modules.get(i).getItem() instanceof ModuleItem moduleItem && moduleItem.getModuleType() == module) {
+			ItemStack moduleStack = modules.get(i);
+
+			if (!moduleStack.isEmpty() && moduleStack.getItem() instanceof ModuleItem moduleItem && moduleItem.getModuleType() == module) {
 				if (!toggled)
 					modules.set(i, ItemStack.EMPTY);
 
-				onModuleRemoved(modules.get(i), module, toggled);
+				onModuleRemoved(moduleStack, module, toggled);
 			}
 		}
 	}
@@ -390,10 +388,9 @@ public interface IModuleInventory extends IItemHandlerModifiable {
 	 * Used for reading the module inventory from a tag. Use in conjunction with writeModuleInventory.
 	 *
 	 * @param tag The tag to read the inventory from
-	 * @param lookupProvider lookup for registry entries
 	 * @return A NonNullList of ItemStacks that were read from the given tag
 	 */
-	public default NonNullList<ItemStack> readModuleInventory(CompoundTag tag, HolderLookup.Provider lookupProvider) {
+	public default NonNullList<ItemStack> readModuleInventory(CompoundTag tag) {
 		ListTag list = tag.getList("Modules", Tag.TAG_COMPOUND);
 		NonNullList<ItemStack> modules = NonNullList.withSize(getMaxNumberOfModules(), ItemStack.EMPTY);
 
@@ -402,7 +399,7 @@ public interface IModuleInventory extends IItemHandlerModifiable {
 			byte slot = stackTag.getByte("ModuleSlot");
 
 			if (slot >= 0 && slot < modules.size())
-				modules.set(slot, Utils.parseOptional(lookupProvider, stackTag));
+				modules.set(slot, ItemStack.of(stackTag));
 		}
 
 		return modules;
@@ -439,10 +436,9 @@ public interface IModuleInventory extends IItemHandlerModifiable {
 	 * Used for writing the module inventory to a tag. Use in conjunction with readModuleInventory.
 	 *
 	 * @param tag The tag to write the inventory to
-	 * @param lookupProvider lookup for registry entries
 	 * @return The modified tag
 	 */
-	public default CompoundTag writeModuleInventory(CompoundTag tag, HolderLookup.Provider lookupProvider) {
+	public default CompoundTag writeModuleInventory(CompoundTag tag) {
 		ListTag list = new ListTag();
 		NonNullList<ItemStack> modules = getInventory();
 
@@ -451,7 +447,8 @@ public interface IModuleInventory extends IItemHandlerModifiable {
 				CompoundTag stackTag = new CompoundTag();
 
 				stackTag.putByte("ModuleSlot", (byte) i);
-				list.add(modules.get(i).save(lookupProvider, stackTag));
+				modules.get(i).save(stackTag);
+				list.add(stackTag);
 			}
 		}
 
@@ -494,9 +491,13 @@ public interface IModuleInventory extends IItemHandlerModifiable {
 		if (!isModuleEnabled(ModuleType.ALLOWLIST))
 			return false;
 
-		ListModuleData listModuleData = getModule(ModuleType.ALLOWLIST).get(SCContent.LIST_MODULE_DATA);
+		ItemStack stack = getModule(ModuleType.ALLOWLIST);
 
-		return listModuleData != null && (listModuleData.affectEveryone() || listModuleData.isTeamOfPlayerOnList(myLevel(), name) || listModuleData.isPlayerOnList(name));
+		if (stack.hasTag() && stack.getTag().getBoolean("affectEveryone"))
+			return true;
+
+		//IModuleInventory#getModule returns ItemStack.EMPTY when the module does not exist, and getPlayersFromModule will then have an empty list
+		return ModuleItem.doesModuleHaveTeamOf(stack, name, myLevel()) || ModuleItem.getPlayersFromModule(stack).contains(name.toLowerCase());
 	}
 
 	/**
@@ -509,30 +510,27 @@ public interface IModuleInventory extends IItemHandlerModifiable {
 		if (!isModuleEnabled(ModuleType.DENYLIST))
 			return false;
 
-		ListModuleData listModuleData = getModule(ModuleType.ALLOWLIST).get(SCContent.LIST_MODULE_DATA);
+		ItemStack stack = getModule(ModuleType.DENYLIST);
 
-		if (listModuleData != null) {
-			if (listModuleData.affectEveryone()) {
-				if (this instanceof IOwnable ownable) {
-					//only deny players that are not the owner
-					if (entity instanceof Player player) {
-						//if the player IS the owner, fall back to the default handling (check if the name is on the list)
-						if (!ownable.isOwnedBy(player))
-							return true;
-					}
-					else
+		if (stack.hasTag() && stack.getTag().getBoolean("affectEveryone")) {
+			if (this instanceof IOwnable ownable) {
+				//only deny players that are not the owner
+				if (entity instanceof Player player) {
+					//if the player IS the owner, fall back to the default handling (check if the name is on the list)
+					if (!ownable.isOwnedBy(player))
 						return true;
 				}
 				else
 					return true;
 			}
-
-			String name = entity.getName().getString();
-
-			return listModuleData.isTeamOfPlayerOnList(myLevel(), name) || listModuleData.isPlayerOnList(name);
+			else
+				return true;
 		}
 
-		return false;
+		String name = entity.getName().getString();
+
+		//IModuleInventory#getModule returns ItemStack.EMPTY when the module does not exist, and getPlayersFromModule will then have an empty list
+		return ModuleItem.doesModuleHaveTeamOf(stack, name, myLevel()) || ModuleItem.getPlayersFromModule(stack).contains(name.toLowerCase());
 	}
 
 	/**

@@ -27,7 +27,6 @@ import net.geforcemods.securitycraft.util.PasscodeUtils;
 import net.geforcemods.securitycraft.util.Utils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.Vec3i;
 import net.minecraft.nbt.CompoundTag;
@@ -49,9 +48,11 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.ContainerOpenersCounter;
 import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.neoforge.client.model.data.ModelData;
-import net.neoforged.neoforge.items.IItemHandler;
-import net.neoforged.neoforge.items.wrapper.InvWrapper;
+import net.minecraftforge.client.model.data.ModelData;
+import net.minecraftforge.common.capabilities.Capability;
+import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.common.util.LazyOptional;
+import net.minecraftforge.items.IItemHandler;
 
 public class KeypadBarrelBlockEntity extends RandomizableContainerBlockEntity implements IPasscodeProtected, IOwnable, IModuleInventory, ICustomizable, ILockable, ISentryBulletContainer {
 	private NonNullList<ItemStack> items = NonNullList.withSize(27, ItemStack.EMPTY);
@@ -79,6 +80,7 @@ public class KeypadBarrelBlockEntity extends RandomizableContainerBlockEntity im
 			return false;
 		}
 	};
+	private LazyOptional<IItemHandler> insertOnlyHandler;
 	private byte[] passcode;
 	private UUID saltKey;
 	private Owner owner = new Owner();
@@ -95,15 +97,15 @@ public class KeypadBarrelBlockEntity extends RandomizableContainerBlockEntity im
 	}
 
 	@Override
-	public void saveAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
+	public void saveAdditional(CompoundTag tag) {
 		long cooldownLeft;
 
-		super.saveAdditional(tag, lookupProvider);
+		super.saveAdditional(tag);
 
 		if (!trySaveLootTable(tag))
-			ContainerHelper.saveAllItems(tag, items, lookupProvider);
+			ContainerHelper.saveAllItems(tag, items);
 
-		writeModuleInventory(tag, lookupProvider);
+		writeModuleInventory(tag);
 		writeModuleStates(tag);
 		writeOptions(tag);
 		cooldownLeft = getCooldownEnd() - System.currentTimeMillis();
@@ -123,22 +125,22 @@ public class KeypadBarrelBlockEntity extends RandomizableContainerBlockEntity im
 	}
 
 	@Override
-	public void loadAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.loadAdditional(tag, lookupProvider);
+	public void load(CompoundTag tag) {
+		super.load(tag);
 
 		items = NonNullList.withSize(getContainerSize(), ItemStack.EMPTY);
 
 		if (!tryLoadLootTable(tag))
-			ContainerHelper.loadAllItems(tag, items, lookupProvider);
+			ContainerHelper.loadAllItems(tag, items);
 
-		modules = readModuleInventory(tag, lookupProvider);
+		modules = readModuleInventory(tag);
 		moduleStates = readModuleStates(tag);
 		readOptions(tag);
 		cooldownEnd = System.currentTimeMillis() + tag.getLong("cooldownLeft");
 		loadSaltKey(tag);
 		loadPasscode(tag);
 		owner.load(tag);
-		previousBarrel = ResourceLocation.parse(tag.getString("previous_barrel"));
+		previousBarrel = new ResourceLocation(tag.getString("previous_barrel"));
 
 		if (tag.contains("sendMessage") && !tag.getBoolean("sendMessage")) {
 			sendAllowlistMessage.setValue(false);
@@ -163,8 +165,8 @@ public class KeypadBarrelBlockEntity extends RandomizableContainerBlockEntity im
 	}
 
 	@Override
-	public CompoundTag getUpdateTag(HolderLookup.Provider lookupProvider) {
-		return PasscodeUtils.filterPasscodeAndSaltFromTag(saveCustomOnly(lookupProvider));
+	public CompoundTag getUpdateTag() {
+		return PasscodeUtils.filterPasscodeAndSaltFromTag(saveWithoutMetadata());
 	}
 
 	@Override
@@ -173,13 +175,14 @@ public class KeypadBarrelBlockEntity extends RandomizableContainerBlockEntity im
 	}
 
 	@Override
-	public void onDataPacket(Connection net, ClientboundBlockEntityDataPacket packet, HolderLookup.Provider lookupProvider) {
-		handleUpdateTag(packet.getTag(), lookupProvider);
+	public void onDataPacket(Connection net, ClientboundBlockEntityDataPacket packet) {
+		super.onDataPacket(net, packet);
+		handleUpdateTag(packet.getTag());
 	}
 
 	@Override
-	public void handleUpdateTag(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.handleUpdateTag(tag, lookupProvider);
+	public void handleUpdateTag(CompoundTag tag) {
+		super.handleUpdateTag(tag);
 		DisguisableBlockEntity.onHandleUpdateTag(this);
 	}
 
@@ -188,16 +191,41 @@ public class KeypadBarrelBlockEntity extends RandomizableContainerBlockEntity im
 		return Utils.localize(SCContent.KEYPAD_BARREL.get().getDescriptionId());
 	}
 
-	public static IItemHandler getCapability(KeypadBarrelBlockEntity be, Direction side) {
-		return BlockUtils.isAllowedToExtractFromProtectedObject(side, be) ? new InvWrapper(be) : new InsertOnlyInvWrapper(be);
+	@Override
+	public <T> LazyOptional<T> getCapability(Capability<T> cap, Direction side) {
+		if (cap == ForgeCapabilities.ITEM_HANDLER)
+			return BlockUtils.isAllowedToExtractFromProtectedObject(side, this) ? super.getCapability(cap, side) : getInsertOnlyHandler().cast();
+		else
+			return super.getCapability(cap, side);
 	}
 
 	@Override
-	public IItemHandler getHandlerForSentry(Sentry entity) {
+	public void invalidateCaps() {
+		if (insertOnlyHandler != null)
+			insertOnlyHandler.invalidate();
+
+		super.invalidateCaps();
+	}
+
+	@Override
+	public void reviveCaps() {
+		insertOnlyHandler = null; //recreated in getInsertOnlyHandler
+		super.reviveCaps();
+	}
+
+	private LazyOptional<IItemHandler> getInsertOnlyHandler() {
+		if (insertOnlyHandler == null)
+			insertOnlyHandler = LazyOptional.of(() -> new InsertOnlyInvWrapper(KeypadBarrelBlockEntity.this));
+
+		return insertOnlyHandler;
+	}
+
+	@Override
+	public LazyOptional<IItemHandler> getHandlerForSentry(Sentry entity) {
 		if (entity.getOwner().owns(this))
-			return new InvWrapper(this);
+			return super.getCapability(ForgeCapabilities.ITEM_HANDLER, Direction.UP);
 		else
-			return null;
+			return LazyOptional.empty();
 	}
 
 	@Override

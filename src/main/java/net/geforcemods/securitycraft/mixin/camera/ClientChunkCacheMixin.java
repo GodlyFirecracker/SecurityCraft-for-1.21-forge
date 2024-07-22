@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import net.geforcemods.securitycraft.SecurityCraft;
-import net.geforcemods.securitycraft.compat.embeddium.EmbeddiumCompat;
+import net.geforcemods.securitycraft.compat.sodium.SodiumCompat;
 import net.geforcemods.securitycraft.entity.camera.CameraController;
 import net.geforcemods.securitycraft.misc.IChunkStorageProvider;
 import net.geforcemods.securitycraft.util.PlayerUtils;
@@ -22,10 +22,10 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.protocol.game.ClientboundLevelChunkPacketData;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.chunk.ChunkStatus;
 import net.minecraft.world.level.chunk.LevelChunk;
-import net.minecraft.world.level.chunk.status.ChunkStatus;
-import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.event.level.ChunkEvent;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.level.ChunkEvent;
 
 /**
  * These mixins aim at implementing the camera chunk storage from CameraController into all the places
@@ -82,9 +82,7 @@ public abstract class ClientChunkCacheMixin implements IChunkStorageProvider {
 	 * Handles chunks that are dropped in range of the camera storage
 	 */
 	@Inject(method = "drop", at = @At(value = "HEAD"))
-	public void securitycraft$onDrop(ChunkPos pos, CallbackInfo ci) {
-		int x = pos.x;
-		int z = pos.z;
+	public void securitycraft$onDrop(int x, int z, CallbackInfo ci) {
 		ClientChunkCache.Storage cameraStorage = CameraController.getCameraStorage();
 
 		if (cameraStorage.inRange(x, z)) {
@@ -92,11 +90,11 @@ public abstract class ClientChunkCacheMixin implements IChunkStorageProvider {
 			LevelChunk chunk = cameraStorage.getChunk(i);
 
 			if (chunk != null && chunk.getPos().x == x && chunk.getPos().z == z) {
-				NeoForge.EVENT_BUS.post(new ChunkEvent.Unload(chunk));
+				MinecraftForge.EVENT_BUS.post(new ChunkEvent.Unload(chunk));
 				cameraStorage.replace(i, chunk, null);
 
-				if (SecurityCraft.IS_EMBEDDIUM_INSTALLED)
-					EmbeddiumCompat.onChunkStatusRemoved(level, x, z);
+				if (SecurityCraft.IS_A_SODIUM_MOD_INSTALLED)
+					SodiumCompat.onChunkStatusRemoved(level, x, z);
 			}
 		}
 	}
@@ -124,10 +122,10 @@ public abstract class ClientChunkCacheMixin implements IChunkStorageProvider {
 
 			level.onChunkLoaded(chunkPos);
 
-			if (SecurityCraft.IS_EMBEDDIUM_INSTALLED)
-				EmbeddiumCompat.onChunkStatusAdded(level, x, z);
+			if (SecurityCraft.IS_A_SODIUM_MOD_INSTALLED)
+				SodiumCompat.onChunkStatusAdded(level, x, z);
 
-			NeoForge.EVENT_BUS.post(new ChunkEvent.Load(chunk, false));
+			MinecraftForge.EVENT_BUS.post(new ChunkEvent.Load(chunk, false));
 			callback.setReturnValue(chunk);
 		}
 	}
@@ -135,7 +133,7 @@ public abstract class ClientChunkCacheMixin implements IChunkStorageProvider {
 	/**
 	 * If chunks in range of a camera storage need to be acquired, ask the camera storage about these chunks
 	 */
-	@Inject(method = "getChunk(IILnet/minecraft/world/level/chunk/status/ChunkStatus;Z)Lnet/minecraft/world/level/chunk/LevelChunk;", at = @At("TAIL"), cancellable = true)
+	@Inject(method = "getChunk(IILnet/minecraft/world/level/chunk/ChunkStatus;Z)Lnet/minecraft/world/level/chunk/LevelChunk;", at = @At("TAIL"), cancellable = true)
 	private void securitycraft$onGetChunk(int x, int z, ChunkStatus requiredStatus, boolean load, CallbackInfoReturnable<LevelChunk> callback) {
 		if (PlayerUtils.isPlayerMountedOnCamera(Minecraft.getInstance().player) && CameraController.getCameraStorage().inRange(x, z)) {
 			LevelChunk chunk = CameraController.getCameraStorage().getChunk(CameraController.getCameraStorage().getIndex(x, z));

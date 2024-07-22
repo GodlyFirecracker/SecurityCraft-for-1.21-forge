@@ -1,36 +1,44 @@
 package net.geforcemods.securitycraft.network.server;
 
-import net.geforcemods.securitycraft.SecurityCraft;
+import java.util.function.Supplier;
+
 import net.geforcemods.securitycraft.blockentities.AlarmBlockEntity;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.entity.player.Player;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.network.NetworkEvent;
 
-public record SyncAlarmSettings(BlockPos pos, ResourceLocation soundEvent, float pitch, int soundLength) implements CustomPacketPayload {
+public class SyncAlarmSettings {
+	private BlockPos pos;
+	private ResourceLocation soundEvent;
+	private float pitch;
+	private int soundLength;
 
-	public static final Type<SyncAlarmSettings> TYPE = new Type<>(SecurityCraft.resLoc("sync_alarm_settings"));
-	//@formatter:off
-	public static final StreamCodec<RegistryFriendlyByteBuf, SyncAlarmSettings> STREAM_CODEC = StreamCodec.composite(
-			BlockPos.STREAM_CODEC, SyncAlarmSettings::pos,
-			ResourceLocation.STREAM_CODEC, SyncAlarmSettings::soundEvent,
-			ByteBufCodecs.FLOAT, SyncAlarmSettings::pitch,
-			ByteBufCodecs.VAR_INT, SyncAlarmSettings::soundLength,
-			SyncAlarmSettings::new);
-	//@formatter:on
-	@Override
-	public Type<? extends CustomPacketPayload> type() {
-		return TYPE;
+	public SyncAlarmSettings() {}
+
+	public SyncAlarmSettings(BlockPos pos, ResourceLocation soundEvent, float pitch, int soundLength) {
+		this.pos = pos;
+		this.soundEvent = soundEvent;
+		this.pitch = pitch;
+		this.soundLength = soundLength;
 	}
 
-	public void handle(IPayloadContext ctx) {
-		Player player = ctx.player();
+	public SyncAlarmSettings(FriendlyByteBuf buf) {
+		pos = BlockPos.of(buf.readLong());
+		soundEvent = buf.readResourceLocation();
+		pitch = buf.readFloat();
+		soundLength = buf.readVarInt();
+	}
 
-		if (player.level().getBlockEntity(pos) instanceof AlarmBlockEntity be && be.isOwnedBy(player)) {
+	public void encode(FriendlyByteBuf buf) {
+		buf.writeLong(pos.asLong());
+		buf.writeResourceLocation(soundEvent);
+		buf.writeFloat(pitch);
+		buf.writeVarInt(soundLength);
+	}
+
+	public void handle(Supplier<NetworkEvent.Context> ctx) {
+		if (ctx.get().getSender().level().getBlockEntity(pos) instanceof AlarmBlockEntity be && be.isOwnedBy(ctx.get().getSender())) {
 			if (!soundEvent.equals(be.getSound().getLocation()))
 				be.setSound(soundEvent);
 

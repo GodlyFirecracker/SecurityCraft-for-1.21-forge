@@ -22,18 +22,18 @@ import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.DyeItem;
+import net.minecraft.world.item.DyeableLeatherItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.component.DyedItemColor;
-import net.neoforged.neoforge.registries.DeferredHolder;
-import net.neoforged.neoforge.registries.DeferredRegister;
+import net.minecraftforge.registries.DeferredRegister;
+import net.minecraftforge.registries.RegistryObject;
 
 public class SCCreativeModeTabs {
 	public static final Map<SCItemGroup, List<ItemStack>> STACKS_FOR_ITEM_GROUPS = Util.make(new EnumMap<>(SCItemGroup.class), map -> Arrays.stream(SCItemGroup.values()).forEach(key -> map.put(key, new ArrayList<>())));
 	public static final DeferredRegister<CreativeModeTab> CREATIVE_MODE_TABS = DeferredRegister.create(Registries.CREATIVE_MODE_TAB, SecurityCraft.MODID);
 	//@formatter:off
-	public static final DeferredHolder<CreativeModeTab, CreativeModeTab> TECHNICAL_TAB = CREATIVE_MODE_TABS.register("technical", () -> CreativeModeTab.builder()
+	public static final RegistryObject<CreativeModeTab> TECHNICAL_TAB = CREATIVE_MODE_TABS.register("technical", () -> CreativeModeTab.builder()
 			.withTabsBefore(CreativeModeTabs.SPAWN_EGGS)
 			.icon(() -> new ItemStack(SCContent.USERNAME_LOGGER.get()))
 			.title(Component.translatable("itemGroup.securitycraft.technical"))
@@ -112,7 +112,7 @@ public class SCCreativeModeTabs {
 					list.add(DyeItem.byColor(DyeColor.byId(SecurityCraft.RANDOM.nextInt(16))));
 				}
 
-				output.accept(DyedItemColor.applyDyes(new ItemStack(SCContent.LENS.get()), list));
+				output.accept(DyeableLeatherItem.dyeArmor(new ItemStack(SCContent.LENS.get()), list));
 				output.accept(new ItemStack(SCContent.ALLOWLIST_MODULE.get()));
 				output.accept(new ItemStack(SCContent.DENYLIST_MODULE.get()));
 				output.accept(new ItemStack(SCContent.DISGUISE_MODULE.get()));
@@ -144,7 +144,7 @@ public class SCCreativeModeTabs {
 				output.acceptAll(STACKS_FOR_ITEM_GROUPS.get(SCItemGroup.TECHNICAL));
 			}).build());
 	//@formatter:off
-	public static final DeferredHolder<CreativeModeTab, CreativeModeTab> MINE_TAB = CREATIVE_MODE_TABS.register("mine", () -> CreativeModeTab.builder()
+	public static final RegistryObject<CreativeModeTab> MINE_TAB = CREATIVE_MODE_TABS.register("mine", () -> CreativeModeTab.builder()
 			.withTabsBefore(TECHNICAL_TAB.getKey())
 			.icon(() -> new ItemStack(SCContent.MINE.get()))
 			.title(Component.translatable("itemGroup.securitycraft.explosives"))
@@ -170,7 +170,7 @@ public class SCCreativeModeTabs {
 				output.accept(new ItemStack(SCContent.BLAST_FURNACE_MINE.get()));
 			}).build());
 	//@formatter:off
-	public static final DeferredHolder<CreativeModeTab, CreativeModeTab> DECORATION_TAB = CREATIVE_MODE_TABS.register("decoration", () -> CreativeModeTab.builder()
+	public static final RegistryObject<CreativeModeTab> DECORATION_TAB = CREATIVE_MODE_TABS.register("decoration", () -> CreativeModeTab.builder()
 			.withTabsBefore(MINE_TAB.getKey())
 			.icon(() -> new ItemStack(SCContent.REINFORCED_OAK_STAIRS.get()))
 			.title(Component.translatable("itemGroup.securitycraft.decoration"))

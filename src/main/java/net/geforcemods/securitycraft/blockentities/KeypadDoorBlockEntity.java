@@ -4,8 +4,8 @@ import java.util.UUID;
 import java.util.function.Consumer;
 
 import net.geforcemods.securitycraft.SCContent;
+import net.geforcemods.securitycraft.api.INameSetter;
 import net.geforcemods.securitycraft.api.IPasscodeProtected;
-import net.geforcemods.securitycraft.api.NamedBlockEntity;
 import net.geforcemods.securitycraft.api.Option;
 import net.geforcemods.securitycraft.api.Option.BooleanOption;
 import net.geforcemods.securitycraft.api.Option.SendAllowlistMessageOption;
@@ -16,7 +16,6 @@ import net.geforcemods.securitycraft.misc.ModuleType;
 import net.geforcemods.securitycraft.util.PasscodeUtils;
 import net.geforcemods.securitycraft.util.Utils;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
@@ -39,8 +38,8 @@ public class KeypadDoorBlockEntity extends SpecialDoorBlockEntity implements IPa
 	}
 
 	@Override
-	public void saveAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.saveAdditional(tag, lookupProvider);
+	public void saveAdditional(CompoundTag tag) {
+		super.saveAdditional(tag);
 
 		if (saltKey != null)
 			tag.putUUID("saltKey", saltKey);
@@ -54,8 +53,8 @@ public class KeypadDoorBlockEntity extends SpecialDoorBlockEntity implements IPa
 	}
 
 	@Override
-	public void loadAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.loadAdditional(tag, lookupProvider);
+	public void load(CompoundTag tag) {
+		super.load(tag);
 
 		loadSaltKey(tag);
 		loadPasscode(tag);
@@ -134,7 +133,7 @@ public class KeypadDoorBlockEntity extends SpecialDoorBlockEntity implements IPa
 	@Override
 	public ModuleType[] acceptedModules() {
 		return new ModuleType[] {
-				ModuleType.ALLOWLIST, ModuleType.DENYLIST, ModuleType.SMART, ModuleType.HARMING
+				ModuleType.ALLOWLIST, ModuleType.DENYLIST, ModuleType.SMART, ModuleType.HARMING, ModuleType.DISGUISE
 		};
 	}
 
@@ -163,7 +162,7 @@ public class KeypadDoorBlockEntity extends SpecialDoorBlockEntity implements IPa
 		super.setCustomName(customName);
 
 		if (getBlockState().getValue(BlockStateProperties.DOUBLE_BLOCK_HALF) == DoubleBlockHalf.LOWER)
-			((NamedBlockEntity) level.getBlockEntity(worldPosition.above())).setCustomName(customName);
+			((INameSetter) level.getBlockEntity(worldPosition.above())).setCustomName(customName);
 	}
 
 	public void runForOtherHalf(Consumer<KeypadDoorBlockEntity> action) {

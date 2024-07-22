@@ -3,17 +3,15 @@ package net.geforcemods.securitycraft.blockentities;
 import net.geforcemods.securitycraft.SCContent;
 import net.geforcemods.securitycraft.api.Option;
 import net.geforcemods.securitycraft.api.Option.BooleanOption;
-import net.geforcemods.securitycraft.components.KeycardData;
 import net.geforcemods.securitycraft.items.KeycardItem;
 import net.geforcemods.securitycraft.misc.ModuleType;
 import net.geforcemods.securitycraft.util.PlayerUtils;
 import net.geforcemods.securitycraft.util.Utils;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.ItemInteractionResult;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
@@ -27,7 +25,7 @@ public class KeycardLockBlockEntity extends KeycardReaderBlockEntity {
 	}
 
 	@Override
-	public ItemInteractionResult onRightClickWithActionItem(ItemStack stack, InteractionHand hand, Player player, boolean isCodebreaker, boolean isKeycardHolder) {
+	public InteractionResult onRightClickWithActionItem(ItemStack stack, InteractionHand hand, Player player, boolean isCodebreaker, boolean isKeycardHolder) {
 		if (!isSetUp() && isOwnedBy(player)) {
 			if (stack.getItem() instanceof KeycardItem item) {
 				boolean[] levels = {
@@ -49,13 +47,13 @@ public class KeycardLockBlockEntity extends KeycardReaderBlockEntity {
 
 				setUp = true;
 				setAcceptedLevels(levels);
-				setSignature(stack.getOrDefault(SCContent.KEYCARD_DATA, KeycardData.DEFAULT).signature());
+				setSignature(stack.getOrCreateTag().getInt("signature"));
 				PlayerUtils.sendMessageToPlayer(player, Utils.localize(getBlockState().getBlock().getDescriptionId()), Utils.localize("messages.securitycraft:keycard_lock.setup_successful." + keySuffix, item.getLevel() + 1), ChatFormatting.GREEN);
-				return ItemInteractionResult.SUCCESS;
+				return InteractionResult.SUCCESS;
 			}
 			else {
 				PlayerUtils.sendMessageToPlayer(player, Utils.localize(getBlockState().getBlock().getDescriptionId()), Utils.localize("messages.securitycraft:keycard_lock.not_set_up"), ChatFormatting.RED);
-				return ItemInteractionResult.FAIL;
+				return InteractionResult.FAIL;
 			}
 		}
 
@@ -92,14 +90,14 @@ public class KeycardLockBlockEntity extends KeycardReaderBlockEntity {
 	}
 
 	@Override
-	public void saveAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.saveAdditional(tag, lookupProvider);
+	public void saveAdditional(CompoundTag tag) {
+		super.saveAdditional(tag);
 		tag.putBoolean("set_up", setUp);
 	}
 
 	@Override
-	public void loadAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.loadAdditional(tag, lookupProvider);
+	public void load(CompoundTag tag) {
+		super.load(tag);
 		setUp = tag.getBoolean("set_up");
 	}
 

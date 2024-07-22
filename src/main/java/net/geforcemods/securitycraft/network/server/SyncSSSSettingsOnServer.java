@@ -1,41 +1,17 @@
 package net.geforcemods.securitycraft.network.server;
 
-import net.geforcemods.securitycraft.SecurityCraft;
+import java.util.function.Supplier;
+
 import net.geforcemods.securitycraft.blockentities.SonicSecuritySystemBlockEntity;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.GlobalPos;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.level.Level;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.network.NetworkEvent;
 
-public class SyncSSSSettingsOnServer implements CustomPacketPayload {
-	public static final Type<SyncSSSSettingsOnServer> TYPE = new Type<>(SecurityCraft.resLoc("sync_sss_settings_on_server"));
-	public static final StreamCodec<RegistryFriendlyByteBuf, SyncSSSSettingsOnServer> STREAM_CODEC = new StreamCodec<>() {
-		public SyncSSSSettingsOnServer decode(RegistryFriendlyByteBuf buf) {
-			BlockPos pos = buf.readBlockPos();
-			DataType dataType = buf.readEnum(DataType.class);
-
-			if (dataType == DataType.REMOVE_POS)
-				return new SyncSSSSettingsOnServer(pos, dataType, buf.readGlobalPos());
-			else
-				return new SyncSSSSettingsOnServer(pos, dataType);
-		}
-
-		@Override
-		public void encode(RegistryFriendlyByteBuf buf, SyncSSSSettingsOnServer packet) {
-			buf.writeBlockPos(packet.pos);
-			buf.writeEnum(packet.dataType);
-
-			if (packet.dataType == DataType.REMOVE_POS)
-				buf.writeGlobalPos(packet.posToRemove);
-		}
-	};
+public class SyncSSSSettingsOnServer {
 	private BlockPos pos;
 	private DataType dataType;
-	private GlobalPos posToRemove;
+	private BlockPos posToRemove;
 
 	public SyncSSSSettingsOnServer() {}
 
@@ -43,37 +19,62 @@ public class SyncSSSSettingsOnServer implements CustomPacketPayload {
 		this(pos, dataType, null);
 	}
 
-	public SyncSSSSettingsOnServer(BlockPos pos, DataType dataType, GlobalPos posToRemove) {
+	public SyncSSSSettingsOnServer(BlockPos pos, DataType dataType, BlockPos posToRemove) {
 		this.pos = pos;
 		this.dataType = dataType;
 		this.posToRemove = posToRemove;
 	}
 
-	@Override
-	public Type<? extends CustomPacketPayload> type() {
-		return TYPE;
+	public SyncSSSSettingsOnServer(FriendlyByteBuf buf) {
+		pos = buf.readBlockPos();
+		dataType = buf.readEnum(DataType.class);
+
+		if (dataType == DataType.REMOVE_POS)
+			posToRemove = buf.readBlockPos();
 	}
 
-	public void handle(IPayloadContext ctx) {
-		Player player = ctx.player();
-		Level level = player.level();
+	public void encode(FriendlyByteBuf buf) {
+		buf.writeBlockPos(pos);
+		buf.writeEnum(dataType);
 
-		if (level.getBlockEntity(pos) instanceof SonicSecuritySystemBlockEntity sss && sss.isOwnedBy(player)) {
+		if (dataType == DataType.REMOVE_POS)
+			buf.writeBlockPos(posToRemove);
+	}
+
+	public void handle(Supplier<NetworkEvent.Context> ctx) {
+		Level level = ctx.get().getSender().level();
+
+		if (level.getBlockEntity(pos) instanceof SonicSecuritySystemBlockEntity sss && sss.isOwnedBy(ctx.get().getSender())) {
 			switch (dataType) {
-				case POWER_ON -> sss.setActive(true);
-				case POWER_OFF -> {
+				case POWER_ON:
+					sss.setActive(true);
+					break;
+				case POWER_OFF:
 					sss.setActive(false);
 
 					if (sss.isRecording())
 						sss.setRecording(false);
-				}
-				case SOUND_ON -> sss.setPings(true);
-				case SOUND_OFF -> sss.setPings(false);
-				case RECORDING_ON -> sss.setRecording(true);
-				case RECORDING_OFF -> sss.setRecording(false);
-				case CLEAR_NOTES -> sss.clearNotes();
-				case REMOVE_POS -> sss.delink(posToRemove, false);
-				case INVERT_FUNCTIONALITY -> sss.setDisableBlocksWhenTuneIsPlayed(!sss.disablesBlocksWhenTuneIsPlayed());
+					break;
+				case SOUND_ON:
+					sss.setPings(true);
+					break;
+				case SOUND_OFF:
+					sss.setPings(false);
+					break;
+				case RECORDING_ON:
+					sss.setRecording(true);
+					break;
+				case RECORDING_OFF:
+					sss.setRecording(false);
+					break;
+				case CLEAR_NOTES:
+					sss.clearNotes();
+					break;
+				case REMOVE_POS:
+					sss.delink(posToRemove, false);
+					break;
+				case INVERT_FUNCTIONALITY:
+					sss.setDisableBlocksWhenTuneIsPlayed(!sss.disablesBlocksWhenTuneIsPlayed());
 			}
 
 			sss.setChanged();

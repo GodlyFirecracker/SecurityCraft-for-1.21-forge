@@ -27,7 +27,7 @@ import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.DirectionProperty;
-import net.neoforged.neoforge.common.NeoForge;
+import net.minecraftforge.common.MinecraftForge;
 
 public class ReinforcedObserverBlock extends DisguisableBlock implements IReinforcedBlock {
 	public static final BooleanProperty POWERED = BlockStateProperties.POWERED;
@@ -134,7 +134,7 @@ public class ReinforcedObserverBlock extends DisguisableBlock implements IReinfo
 	@Override
 	public void setPlacedBy(Level level, BlockPos pos, BlockState state, LivingEntity placer, ItemStack stack) {
 		if (placer instanceof Player player)
-			NeoForge.EVENT_BUS.post(new OwnershipEvent(level, pos, player));
+			MinecraftForge.EVENT_BUS.post(new OwnershipEvent(level, pos, player));
 	}
 
 	@Override

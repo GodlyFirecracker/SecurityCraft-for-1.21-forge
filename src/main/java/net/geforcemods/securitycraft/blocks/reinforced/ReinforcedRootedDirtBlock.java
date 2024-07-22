@@ -17,7 +17,7 @@ public class ReinforcedRootedDirtBlock extends BaseReinforcedBlock implements Bo
 	}
 
 	@Override
-	public boolean isValidBonemealTarget(LevelReader level, BlockPos pos, BlockState state) {
+	public boolean isValidBonemealTarget(LevelReader level, BlockPos pos, BlockState state, boolean isClientSide) {
 		return level.getBlockState(pos.below()).isAir();
 	}
 

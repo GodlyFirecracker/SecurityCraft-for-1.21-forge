@@ -11,11 +11,11 @@ import net.geforcemods.securitycraft.blocks.reinforced.ReinforcedPistonBaseBlock
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.HolderGetter;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtUtils;
+import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
@@ -71,8 +71,19 @@ public class ReinforcedPistonMovingBlockEntity extends BlockEntity implements IO
 	}
 
 	@Override
-	public CompoundTag getUpdateTag(HolderLookup.Provider lookupProvider) {
-		return saveCustomOnly(lookupProvider);
+	public CompoundTag getUpdateTag() {
+		return saveWithoutMetadata();
+	}
+
+	@Override
+	public void onDataPacket(Connection net, ClientboundBlockEntityDataPacket pkt) {
+		super.onDataPacket(net, pkt);
+		handleUpdateTag(pkt.getTag());
+	}
+
+	@Override
+	public void handleUpdateTag(CompoundTag tag) {
+		load(tag);
 	}
 
 	@Override
@@ -285,7 +296,7 @@ public class ReinforcedPistonMovingBlockEntity extends BlockEntity implements IO
 					BlockEntity be = pushedState.hasBlockEntity() ? ((EntityBlock) pushedState.getBlock()).newBlockEntity(worldPosition, pushedState) : null;
 
 					if (be != null) {
-						be.loadWithComponents(movedBlockEntityTag, level.registryAccess());
+						be.load(movedBlockEntityTag);
 						level.setBlockEntity(be);
 
 						if (be instanceof IModuleInventory moduleInv) {
@@ -331,7 +342,7 @@ public class ReinforcedPistonMovingBlockEntity extends BlockEntity implements IO
 							BlockEntity storedBe = pushedState.hasBlockEntity() ? ((EntityBlock) pushedState.getBlock()).newBlockEntity(be.worldPosition, pushedState) : null;
 
 							if (storedBe != null) {
-								storedBe.loadWithComponents(be.movedBlockEntityTag, level.registryAccess());
+								storedBe.load(be.movedBlockEntityTag);
 								level.setBlockEntity(storedBe);
 
 								if (storedBe instanceof IModuleInventory moduleInv) {
@@ -364,11 +375,10 @@ public class ReinforcedPistonMovingBlockEntity extends BlockEntity implements IO
 	}
 
 	@Override
-	public void loadAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
+	public void load(CompoundTag tag) {
 		HolderGetter<Block> holderGetter;
 
-		super.loadAdditional(tag, lookupProvider);
-
+		super.load(tag);
 		holderGetter = level != null ? level.holderLookup(Registries.BLOCK) : BuiltInRegistries.BLOCK.asLookup();
 		movedState = NbtUtils.readBlockState(holderGetter, tag.getCompound("blockState"));
 		direction = Direction.from3DDataValue(tag.getInt("facing"));
@@ -381,8 +391,8 @@ public class ReinforcedPistonMovingBlockEntity extends BlockEntity implements IO
 	}
 
 	@Override
-	public void saveAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.saveAdditional(tag, lookupProvider);
+	public void saveAdditional(CompoundTag tag) {
+		super.saveAdditional(tag);
 		tag.put("blockState", NbtUtils.writeBlockState(movedState));
 		tag.putInt("facing", direction.get3DDataValue());
 		tag.putFloat("progress", lastProgress);

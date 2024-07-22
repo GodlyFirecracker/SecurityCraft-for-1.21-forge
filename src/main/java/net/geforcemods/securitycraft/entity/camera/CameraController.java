@@ -9,8 +9,8 @@ import net.geforcemods.securitycraft.api.IModuleInventory;
 import net.geforcemods.securitycraft.blockentities.SecurityCameraBlockEntity;
 import net.geforcemods.securitycraft.blocks.SecurityCameraBlock;
 import net.geforcemods.securitycraft.misc.KeyBindings;
-import net.geforcemods.securitycraft.misc.LayerToggleHandler;
 import net.geforcemods.securitycraft.misc.ModuleType;
+import net.geforcemods.securitycraft.misc.OverlayToggleHandler;
 import net.geforcemods.securitycraft.misc.SCSounds;
 import net.geforcemods.securitycraft.network.server.DismountCamera;
 import net.geforcemods.securitycraft.network.server.SetCameraPowered;
@@ -32,13 +32,13 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.client.event.ClientTickEvent;
-import net.neoforged.neoforge.client.event.ScreenshotEvent;
-import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.ScreenshotEvent;
+import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
+import net.minecraftforge.event.TickEvent.ClientTickEvent;
+import net.minecraftforge.event.TickEvent.Phase;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod.EventBusSubscriber;
 
 @EventBusSubscriber(modid = SecurityCraft.MODID, value = Dist.CLIENT)
 public class CameraController {
@@ -66,60 +66,55 @@ public class CameraController {
 	private CameraController() {}
 
 	@SubscribeEvent
-	public static void onClientTickPre(ClientTickEvent.Pre event) {
-		//up/down/left/right handling is split to prevent players who are viewing a camera from moving around in a boat or on a horse
-		Entity cameraEntity = Minecraft.getInstance().cameraEntity;
-
-		if (cameraEntity instanceof SecurityCamera) {
-			Options options = Minecraft.getInstance().options;
-
-			for (ViewMovementKeyHandler handler : MOVE_KEY_HANDLERS) {
-				handler.tickStart();
-			}
-
-			if (options.keyShift.isDown()) {
-				dismount();
-				options.keyShift.setDown(false);
-			}
-		}
-	}
-
-	@SubscribeEvent
-	public static void onClientTickPost(ClientTickEvent.Post event) {
+	public static void onClientTick(ClientTickEvent event) {
 		Entity cameraEntity = Minecraft.getInstance().cameraEntity;
 
 		if (cameraEntity instanceof SecurityCamera cam) {
-			for (ViewMovementKeyHandler handler : MOVE_KEY_HANDLERS) {
-				handler.tickEnd(cam);
+			Options options = Minecraft.getInstance().options;
+
+			//up/down/left/right handling is split to prevent players who are viewing a camera from moving around in a boat or on a horse
+			if (event.phase == Phase.START) {
+				for (ViewMovementKeyHandler handler : MOVE_KEY_HANDLERS) {
+					handler.tickStart();
+				}
+
+				if (options.keyShift.isDown()) {
+					dismount();
+					options.keyShift.setDown(false);
+				}
 			}
+			else if (event.phase == Phase.END) {
+				for (ViewMovementKeyHandler handler : MOVE_KEY_HANDLERS) {
+					handler.tickEnd(cam);
+				}
 
-			if (KeyBindings.cameraZoomIn.isDown())
-				zoomIn(cam);
-			else if (KeyBindings.cameraZoomOut.isDown())
-				zoomOut(cam);
-			else
-				cam.zooming = false;
+				if (KeyBindings.cameraZoomIn.isDown())
+					zoomIn(cam);
+				else if (KeyBindings.cameraZoomOut.isDown())
+					zoomOut(cam);
+				else
+					cam.zooming = false;
 
-			KeyBindings.cameraEmitRedstone.tick(cam);
-			KeyBindings.cameraActivateNightVision.tick(cam);
-			KeyBindings.setDefaultViewingDirection.tick(cam);
-			screenshotSoundCooldown--;
+				KeyBindings.cameraEmitRedstone.tick(cam);
+				KeyBindings.cameraActivateNightVision.tick(cam);
+				KeyBindings.setDefaultViewingDirection.tick(cam);
+				screenshotSoundCooldown--;
 
-			//update other players with the head rotation
-			LocalPlayer player = Minecraft.getInstance().player;
-			double yRotChange = player.getYRot() - player.yRotLast;
-			double xRotChange = player.getXRot() - player.xRotLast;
+				//update other players with the head rotation
+				LocalPlayer player = Minecraft.getInstance().player;
+				double yRotChange = player.getYRot() - player.yRotLast;
+				double xRotChange = player.getXRot() - player.xRotLast;
 
-			if (yRotChange != 0.0D || xRotChange != 0.0D)
-				player.connection.send(new ServerboundMovePlayerPacket.Rot(player.getYRot(), player.getXRot(), player.onGround()));
+				if (yRotChange != 0.0D || xRotChange != 0.0D)
+					player.connection.send(new ServerboundMovePlayerPacket.Rot(player.getYRot(), player.getXRot(), player.onGround()));
+			}
 		}
-
-		if (resetOverlaysAfterDismount) {
+		else if (resetOverlaysAfterDismount) {
 			resetOverlaysAfterDismount = false;
-			LayerToggleHandler.disable(ClientHandler.CAMERA_LAYER);
-			LayerToggleHandler.enable(VanillaGuiLayers.JUMP_METER);
-			LayerToggleHandler.enable(VanillaGuiLayers.EXPERIENCE_BAR);
-			LayerToggleHandler.enable(VanillaGuiLayers.EFFECTS);
+			OverlayToggleHandler.disable(ClientHandler.cameraOverlay);
+			OverlayToggleHandler.enable(VanillaGuiOverlay.JUMP_BAR);
+			OverlayToggleHandler.enable(VanillaGuiOverlay.EXPERIENCE_BAR);
+			OverlayToggleHandler.enable(VanillaGuiOverlay.POTION_ICONS);
 		}
 	}
 
@@ -134,7 +129,7 @@ public class CameraController {
 	}
 
 	private static void dismount() {
-		PacketDistributor.sendToServer(new DismountCamera());
+		SecurityCraft.CHANNEL.sendToServer(new DismountCamera());
 	}
 
 	public static void moveViewUp(SecurityCamera cam) {
@@ -203,16 +198,16 @@ public class CameraController {
 		Level level = cam.level();
 
 		if (level.getBlockEntity(pos) instanceof IModuleInventory be && be.isModuleEnabled(ModuleType.REDSTONE))
-			PacketDistributor.sendToServer(new SetCameraPowered(pos, !level.getBlockState(pos).getValue(SecurityCameraBlock.POWERED)));
+			SecurityCraft.CHANNEL.sendToServer(new SetCameraPowered(pos, !level.getBlockState(pos).getValue(SecurityCameraBlock.POWERED)));
 	}
 
 	public static void toggleNightVision(SecurityCamera cam) {
 		if (ConfigHandler.SERVER.allowCameraNightVision.get())
-			PacketDistributor.sendToServer(new ToggleNightVision());
+			SecurityCraft.CHANNEL.sendToServer(new ToggleNightVision());
 	}
 
 	public static void setDefaultViewingDirection(SecurityCamera cam) {
-		PacketDistributor.sendToServer(new SetDefaultCameraViewingDirection(cam.getId(), cam.getXRot(), cam.getYRot()));
+		SecurityCraft.CHANNEL.sendToServer(new SetDefaultCameraViewingDirection(cam));
 	}
 
 	public static ClientChunkCache.Storage getCameraStorage() {

@@ -14,8 +14,8 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.neoforged.neoforge.items.IItemHandler;
-import net.neoforged.neoforge.items.SlotItemHandler;
+import net.minecraftforge.items.IItemHandler;
+import net.minecraftforge.items.SlotItemHandler;
 
 public class CustomizeBlockMenu extends AbstractContainerMenu {
 	public final IModuleInventory moduleInv;
@@ -79,6 +79,14 @@ public class CustomizeBlockMenu extends AbstractContainerMenu {
 			addSlot(new CustomSlotItemHandler(moduleInv, slotId++, 88, 20));
 			addSlot(new CustomSlotItemHandler(moduleInv, slotId++, 106, 20));
 		}
+		else if (moduleInv.getMaxNumberOfModules() == 6) {
+			addSlot(new CustomSlotItemHandler(moduleInv, slotId++, 16, 20));
+			addSlot(new CustomSlotItemHandler(moduleInv, slotId++, 34, 20));
+			addSlot(new CustomSlotItemHandler(moduleInv, slotId++, 52, 20));
+			addSlot(new CustomSlotItemHandler(moduleInv, slotId++, 70, 20));
+			addSlot(new CustomSlotItemHandler(moduleInv, slotId++, 88, 20));
+			addSlot(new CustomSlotItemHandler(moduleInv, slotId++, 106, 20));
+		}
 
 		maxSlots = 36 + moduleInv.getMaxNumberOfModules();
 	}
@@ -128,7 +136,7 @@ public class CustomizeBlockMenu extends AbstractContainerMenu {
 			if (moduleInv instanceof BlockEntity be && !level.getBlockState(pos).is(be.getBlockState().getBlock()))
 				return false;
 
-			return player.canInteractWithBlock(pos, 4.0D);
+			return player.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) <= 64.0;
 		}, true);
 	}
 

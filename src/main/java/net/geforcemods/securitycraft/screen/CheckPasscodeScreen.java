@@ -21,10 +21,9 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 public class CheckPasscodeScreen extends Screen {
-	private static final ResourceLocation TEXTURE = SecurityCraft.resLoc("textures/gui/container/check_passcode.png");
+	private static final ResourceLocation TEXTURE = new ResourceLocation("securitycraft:textures/gui/container/check_passcode.png");
 	private static final Component COOLDOWN_TEXT_1 = Component.translatable("gui.securitycraft:passcode.cooldown1");
 	private int cooldownText1XPos;
 	private IPasscodeProtected passcodeProtected;
@@ -87,6 +86,8 @@ public class CheckPasscodeScreen extends Screen {
 
 	@Override
 	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+		renderBackground(guiGraphics);
+		guiGraphics.blit(TEXTURE, leftPos, topPos, 0, 0, imageWidth, imageHeight);
 		super.render(guiGraphics, mouseX, mouseY, partialTick);
 		guiGraphics.drawString(font, title, width / 2 - font.width(title) / 2, topPos + 6, 4210752, false);
 
@@ -108,22 +109,16 @@ public class CheckPasscodeScreen extends Screen {
 	}
 
 	@Override
-	public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-		renderTransparentBackground(guiGraphics);
-		guiGraphics.blit(TEXTURE, leftPos, topPos, 0, 0, imageWidth, imageHeight);
-	}
-
-	@Override
 	public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
 		if (keyCode == GLFW.GLFW_KEY_BACKSPACE && keycodeTextbox.getValue().length() > 0)
-			minecraft.player.playSound(SoundEvents.UI_BUTTON_CLICK.value(), 0.15F, 1.0F);
+			minecraft.player.playSound(SoundEvents.UI_BUTTON_CLICK.get(), 0.15F, 1.0F);
 
 		if (!super.keyPressed(keyCode, scanCode, modifiers) && !keycodeTextbox.keyPressed(keyCode, scanCode, modifiers)) {
 			if (minecraft.options.keyInventory.isActiveAndMatches(InputConstants.getKey(keyCode, scanCode)))
 				onClose();
 
 			if (!passcodeProtected.isOnCooldown() && (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER)) {
-				minecraft.player.playSound(SoundEvents.UI_BUTTON_CLICK.value(), 0.15F, 1.0F);
+				minecraft.player.playSound(SoundEvents.UI_BUTTON_CLICK.get(), 0.15F, 1.0F);
 				checkCode(keycodeTextbox.getValue());
 			}
 		}
@@ -140,7 +135,7 @@ public class CheckPasscodeScreen extends Screen {
 	public boolean charTyped(char typedChar, int keyCode) {
 		if (!passcodeProtected.isOnCooldown() && isValidChar(typedChar)) {
 			keycodeTextbox.charTyped(typedChar, keyCode);
-			minecraft.player.playSound(SoundEvents.UI_BUTTON_CLICK.value(), 0.15F, 1.0F);
+			minecraft.player.playSound(SoundEvents.UI_BUTTON_CLICK.get(), 0.15F, 1.0F);
 		}
 
 		return true;
@@ -179,9 +174,9 @@ public class CheckPasscodeScreen extends Screen {
 		keycodeTextbox.setValue("");
 
 		if (passcodeProtected instanceof BlockEntity be)
-			PacketDistributor.sendToServer(new CheckPasscode(be.getBlockPos(), code));
+			SecurityCraft.CHANNEL.sendToServer(new CheckPasscode(be.getBlockPos(), code));
 		else if (passcodeProtected instanceof Entity entity)
-			PacketDistributor.sendToServer(new CheckPasscode(entity.getId(), code));
+			SecurityCraft.CHANNEL.sendToServer(new CheckPasscode(entity.getId(), code));
 	}
 
 	public static class CensoringEditBox extends EditBox {
@@ -214,12 +209,12 @@ public class CheckPasscodeScreen extends Screen {
 		}
 
 		@Override
-		public void scrollTo(int position) {
+		public void setHighlightPos(int position) {
 			String originalValue = value;
 
 			updateRenderedText(originalValue);
 			value = renderedText;
-			super.scrollTo(position);
+			super.setHighlightPos(position);
 			value = originalValue;
 		}
 

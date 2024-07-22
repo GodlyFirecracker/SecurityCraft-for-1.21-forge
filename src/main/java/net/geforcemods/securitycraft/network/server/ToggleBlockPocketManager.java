@@ -1,5 +1,7 @@
 package net.geforcemods.securitycraft.network.server;
 
+import java.util.function.Supplier;
+
 import net.geforcemods.securitycraft.SCContent;
 import net.geforcemods.securitycraft.SecurityCraft;
 import net.geforcemods.securitycraft.blockentities.BlockPocketManagerBlockEntity;
@@ -8,31 +10,38 @@ import net.geforcemods.securitycraft.util.PlayerUtils;
 import net.geforcemods.securitycraft.util.Utils;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.world.entity.player.Player;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.network.NetworkEvent;
 
-public record ToggleBlockPocketManager(BlockPos pos, int size, boolean enabling) implements CustomPacketPayload {
+public class ToggleBlockPocketManager {
+	private BlockPos pos;
+	private int size;
+	private boolean enabling;
 
-	public static final Type<ToggleBlockPocketManager> TYPE = new Type<>(SecurityCraft.resLoc("toggle_block_pocket_manager"));
-	//@formatter:off
-	public static final StreamCodec<RegistryFriendlyByteBuf, ToggleBlockPocketManager> STREAM_CODEC = StreamCodec.composite(
-			BlockPos.STREAM_CODEC, ToggleBlockPocketManager::pos,
-			ByteBufCodecs.VAR_INT, ToggleBlockPocketManager::size,
-			ByteBufCodecs.BOOL, ToggleBlockPocketManager::enabling,
-			ToggleBlockPocketManager::new);
-	//@formatter:on
-	@Override
-	public Type<? extends CustomPacketPayload> type() {
-		return TYPE;
+	public ToggleBlockPocketManager() {}
+
+	public ToggleBlockPocketManager(BlockPocketManagerBlockEntity be, boolean enabling) {
+		pos = be.getBlockPos();
+		size = be.getSize();
+		this.enabling = enabling;
 	}
 
-	public void handle(IPayloadContext ctx) {
-		Player player = ctx.player();
+	public ToggleBlockPocketManager(FriendlyByteBuf buf) {
+		pos = BlockPos.of(buf.readLong());
+		size = buf.readInt();
+		enabling = buf.readBoolean();
+	}
+
+	public void encode(FriendlyByteBuf buf) {
+		buf.writeLong(pos.asLong());
+		buf.writeInt(size);
+		buf.writeBoolean(enabling);
+	}
+
+	public void handle(Supplier<NetworkEvent.Context> ctx) {
+		Player player = ctx.get().getSender();
 
 		if (player.level().getBlockEntity(pos) instanceof BlockPocketManagerBlockEntity be && be.isOwnedBy(player)) {
 			MutableComponent feedback;
@@ -46,7 +55,7 @@ public record ToggleBlockPocketManager(BlockPos pos, int size, boolean enabling)
 
 			if (feedback != null) {
 				if (enabling && !be.isEnabled())
-					ctx.reply(new BlockPocketManagerFailedActivation(pos));
+					SecurityCraft.CHANNEL.reply(new BlockPocketManagerFailedActivation(pos), ctx.get());
 
 				PlayerUtils.sendMessageToPlayer(player, Utils.localize(SCContent.BLOCK_POCKET_MANAGER.get().getDescriptionId()), feedback, ChatFormatting.DARK_AQUA, false);
 			}

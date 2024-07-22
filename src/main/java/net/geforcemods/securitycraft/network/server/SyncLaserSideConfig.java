@@ -1,34 +1,41 @@
 package net.geforcemods.securitycraft.network.server;
 
-import net.geforcemods.securitycraft.SecurityCraft;
+import java.util.Map;
+import java.util.function.Supplier;
+
 import net.geforcemods.securitycraft.blockentities.LaserBlockBlockEntity;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.network.NetworkEvent;
 
-public record SyncLaserSideConfig(BlockPos pos, CompoundTag sideConfig) implements CustomPacketPayload {
-	public static final Type<SyncLaserSideConfig> TYPE = new Type<>(SecurityCraft.resLoc("sync_laser_side_config"));
-	//@formatter:off
-	public static final StreamCodec<RegistryFriendlyByteBuf, SyncLaserSideConfig> STREAM_CODEC = StreamCodec.composite(
-			BlockPos.STREAM_CODEC, SyncLaserSideConfig::pos,
-			ByteBufCodecs.COMPOUND_TAG, SyncLaserSideConfig::sideConfig,
-			SyncLaserSideConfig::new);
-	//@formatter:on
+public class SyncLaserSideConfig {
+	private BlockPos pos;
+	private CompoundTag sideConfig;
 
-	@Override
-	public Type<? extends CustomPacketPayload> type() {
-		return TYPE;
+	public SyncLaserSideConfig() {}
+
+	public SyncLaserSideConfig(BlockPos pos, Map<Direction, Boolean> sideConfig) {
+		this.pos = pos;
+		this.sideConfig = LaserBlockBlockEntity.saveSideConfig(sideConfig);
 	}
 
-	public void handle(IPayloadContext ctx) {
-		Player player = ctx.player();
+	public SyncLaserSideConfig(FriendlyByteBuf buf) {
+		pos = buf.readBlockPos();
+		sideConfig = buf.readNbt();
+	}
+
+	public void encode(FriendlyByteBuf buf) {
+		buf.writeBlockPos(pos);
+		buf.writeNbt(sideConfig);
+	}
+
+	public void handle(Supplier<NetworkEvent.Context> ctx) {
+		Player player = ctx.get().getSender();
 		Level level = player.level();
 
 		if (level.getBlockEntity(pos) instanceof LaserBlockBlockEntity be && be.isOwnedBy(player)) {

@@ -28,12 +28,11 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
-import net.neoforged.neoforge.client.model.generators.ItemModelBuilder;
-import net.neoforged.neoforge.client.model.generators.ItemModelProvider;
-import net.neoforged.neoforge.client.model.generators.ModelFile.UncheckedModelFile;
-import net.neoforged.neoforge.common.data.ExistingFileHelper;
-import net.neoforged.neoforge.registries.DeferredHolder;
-import net.neoforged.neoforge.registries.DeferredItem;
+import net.minecraftforge.client.model.generators.ItemModelBuilder;
+import net.minecraftforge.client.model.generators.ItemModelProvider;
+import net.minecraftforge.client.model.generators.ModelFile.UncheckedModelFile;
+import net.minecraftforge.common.data.ExistingFileHelper;
+import net.minecraftforge.registries.RegistryObject;
 
 public class ItemModelGenerator extends ItemModelProvider {
 	public ItemModelGenerator(PackOutput output, ExistingFileHelper existingFileHelper) {
@@ -56,7 +55,7 @@ public class ItemModelGenerator extends ItemModelProvider {
 		flatReinforcedItems.put(SCContent.REINFORCED_LEVER.get(), "block/lever");
 		flatReinforcedItems.put(SCContent.REINFORCED_SOUL_LANTERN.get(), "item/soul_lantern");
 
-		for (DeferredHolder<Block, ? extends Block> obj : SCContent.BLOCKS.getEntries()) {
+		for (RegistryObject<Block> obj : SCContent.BLOCKS.getEntries()) {
 			Block block = obj.get();
 			Item item = block.asItem();
 
@@ -81,14 +80,14 @@ public class ItemModelGenerator extends ItemModelProvider {
 				blockMine(mine.getBlockDisguisedAs(), block);
 		}
 
-		List<DeferredHolder<Item, ? extends Item>> singleTextureItems = new ArrayList<>(SCContent.ITEMS.getEntries());
+		List<RegistryObject<Item>> singleTextureItems = new ArrayList<>(SCContent.ITEMS.getEntries());
 		//@formatter:off
-		List<DeferredItem<? extends Item>> handheldItems = List.of(
+		List<RegistryObject<Item>> handheldItems = List.of(
 				SCContent.UNIVERSAL_BLOCK_REINFORCER_LVL_1,
 				SCContent.UNIVERSAL_BLOCK_REINFORCER_LVL_2,
 				SCContent.UNIVERSAL_BLOCK_REINFORCER_LVL_3,
 				SCContent.UNIVERSAL_KEY_CHANGER);
-		List<DeferredItem<? extends Item>> linkingStateItems = List.of(
+		List<RegistryObject<Item>> linkingStateItems = List.of(
 				SCContent.CAMERA_MONITOR,
 				SCContent.MINE_REMOTE_ACCESS_TOOL,
 				SCContent.SENTRY_REMOTE_ACCESS_TOOL,
@@ -98,8 +97,8 @@ public class ItemModelGenerator extends ItemModelProvider {
 				SCContent.ANCIENT_DEBRIS_MINE_ITEM,
 				SCContent.BRIEFCASE,
 				SCContent.CODEBREAKER,
-				SCContent.DISPLAY_CASE_ITEM,
-				SCContent.GLOW_DISPLAY_CASE_ITEM,
+				SCContent.DISPLAY_CASE,
+				SCContent.GLOW_DISPLAY_CASE,
 				SCContent.KEYCARD_HOLDER,
 				SCContent.KEYPAD_CHEST_ITEM,
 				SCContent.LENS,
@@ -115,11 +114,11 @@ public class ItemModelGenerator extends ItemModelProvider {
 		singleTextureItems.removeAll(linkingStateItems);
 		//@formatter:on
 
-		for (DeferredHolder<Item, ? extends Item> obj : singleTextureItems) {
+		for (RegistryObject<Item> obj : singleTextureItems) {
 			simpleItem(obj.get(), "item/generated");
 		}
 
-		for (DeferredHolder<Item, ? extends Item> obj : handheldItems) {
+		for (RegistryObject<Item> obj : handheldItems) {
 			simpleItem(obj.get(), "item/handheld");
 		}
 
@@ -172,10 +171,9 @@ public class ItemModelGenerator extends ItemModelProvider {
 		reinforcedWallInventory(SCContent.REINFORCED_POLISHED_BLACKSTONE_BRICK_WALL.get(), "polished_blackstone_bricks");
 		reinforcedWallInventory(SCContent.REINFORCED_DEEPSLATE_BRICK_WALL.get(), "deepslate_bricks");
 		reinforcedWallInventory(SCContent.REINFORCED_DEEPSLATE_TILE_WALL.get(), "deepslate_tiles");
-		reinforcedWallInventory(SCContent.REINFORCED_TUFF_BRICK_WALL.get(), "tuff_bricks");
 	}
 
-	public void linkingStateItem(DeferredHolder<Item, ? extends Item> item) {
+	public void linkingStateItem(RegistryObject<Item> item) {
 		String hasLinkedPath = item.getId().getPath();
 		String defaultPath = hasLinkedPath + "_idle";
 		String notLinkedPath = hasLinkedPath + "_not_linked";
@@ -220,7 +218,7 @@ public class ItemModelGenerator extends ItemModelProvider {
 	}
 
 	public ItemModelBuilder flatReinforcedItem(Block block, String texturePath) {
-		return singleTexture(name(block), mcLoc("item/generated"), "layer0", ResourceLocation.parse(texturePath));
+		return singleTexture(name(block), mcLoc("item/generated"), "layer0", new ResourceLocation(texturePath));
 	}
 
 	public ItemModelBuilder reinforcedStainedPane(Block block) {
@@ -238,7 +236,7 @@ public class ItemModelGenerator extends ItemModelProvider {
 	}
 
 	public ItemModelBuilder reinforcedWallInventory(Block block, String textureName) {
-		return uncheckedSingleTexture(Utils.getRegistryName(block).toString(), modBlock("reinforced_wall_inventory"), "wall", SecurityCraft.mcResLoc("block/" + textureName));
+		return uncheckedSingleTexture(Utils.getRegistryName(block).toString(), modBlock("reinforced_wall_inventory"), "wall", new ResourceLocation("block/" + textureName));
 	}
 
 	public ItemModelBuilder reinforcedBlockInventory(Block block) {

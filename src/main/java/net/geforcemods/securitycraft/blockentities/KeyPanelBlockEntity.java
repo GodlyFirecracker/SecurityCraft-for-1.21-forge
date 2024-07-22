@@ -21,7 +21,6 @@ import net.geforcemods.securitycraft.util.BlockUtils;
 import net.geforcemods.securitycraft.util.PasscodeUtils;
 import net.geforcemods.securitycraft.util.Utils;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.state.BlockState;
@@ -41,8 +40,8 @@ public class KeyPanelBlockEntity extends CustomizableBlockEntity implements IPas
 	}
 
 	@Override
-	public void saveAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.saveAdditional(tag, lookupProvider);
+	public void saveAdditional(CompoundTag tag) {
+		super.saveAdditional(tag);
 
 		if (saltKey != null)
 			tag.putUUID("saltKey", saltKey);
@@ -56,8 +55,8 @@ public class KeyPanelBlockEntity extends CustomizableBlockEntity implements IPas
 	}
 
 	@Override
-	public void loadAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.loadAdditional(tag, lookupProvider);
+	public void load(CompoundTag tag) {
+		super.load(tag);
 
 		loadSaltKey(tag);
 		loadPasscode(tag);

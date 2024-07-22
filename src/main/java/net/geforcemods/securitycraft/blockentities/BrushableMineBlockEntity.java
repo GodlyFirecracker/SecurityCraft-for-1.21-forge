@@ -6,8 +6,8 @@ import net.geforcemods.securitycraft.api.Owner;
 import net.geforcemods.securitycraft.blocks.mines.BrushableMineBlock;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.player.Player;
@@ -107,22 +107,37 @@ public class BrushableMineBlockEntity extends BrushableBlockEntity implements IO
 	}
 
 	@Override
-	public void saveAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.saveAdditional(tag, lookupProvider);
+	public void saveAdditional(CompoundTag tag) {
+		super.saveAdditional(tag);
 
 		if (owner != null)
 			owner.save(tag, needsValidation());
 	}
 
 	@Override
-	public void loadAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.loadAdditional(tag, lookupProvider);
+	public void load(CompoundTag tag) {
+		super.load(tag);
 		owner.load(tag);
+	}
+
+	@Override
+	public CompoundTag getUpdateTag() {
+		return saveWithoutMetadata();
+	}
+
+	@Override
+	public void handleUpdateTag(CompoundTag tag) {
+		load(tag);
 	}
 
 	@Override
 	public ClientboundBlockEntityDataPacket getUpdatePacket() {
 		return ClientboundBlockEntityDataPacket.create(this);
+	}
+
+	@Override
+	public void onDataPacket(Connection net, ClientboundBlockEntityDataPacket packet) {
+		handleUpdateTag(packet.getTag());
 	}
 
 	@Override

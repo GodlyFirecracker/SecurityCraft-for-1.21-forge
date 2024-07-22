@@ -16,11 +16,15 @@ import net.minecraft.world.level.block.Block;
 public class PictureButton extends Button {
 	private ItemStack blockToRender = ItemStack.EMPTY;
 	private ItemStack itemToRender = ItemStack.EMPTY;
-	private ResourceLocation sprite;
+	private ResourceLocation textureLocation;
+	private int u;
+	private int v;
 	private int drawOffsetX;
 	private int drawOffsetY;
 	private int drawWidth;
 	private int drawHeight;
+	private int textureWidth;
+	private int textureHeight;
 
 	public PictureButton(int xPos, int yPos, int width, int height, ItemStack itemToRender) {
 		this(xPos, yPos, width, height, itemToRender, b -> {});
@@ -35,10 +39,14 @@ public class PictureButton extends Button {
 			this.itemToRender = new ItemStack(itemToRender.getItem());
 	}
 
-	public PictureButton(int xPos, int yPos, int width, int height, ResourceLocation sprite, int drawOffsetX, int drawOffsetY, int drawWidth, int drawHeight, OnPress onPress) {
+	public PictureButton(int xPos, int yPos, int width, int height, ResourceLocation texture, int textureX, int textureY, int drawOffsetX, int drawOffsetY, int drawWidth, int drawHeight, int textureWidth, int textureHeight, OnPress onPress) {
 		super(xPos, yPos, width, height, Component.empty(), onPress, DEFAULT_NARRATION);
 
-		this.sprite = sprite;
+		textureLocation = texture;
+		u = textureX;
+		v = textureY;
+		this.textureWidth = textureWidth;
+		this.textureHeight = textureHeight;
 		this.drawOffsetX = drawOffsetX;
 		this.drawOffsetY = drawOffsetY;
 		this.drawWidth = drawWidth;
@@ -53,7 +61,7 @@ public class PictureButton extends Button {
 
 			RenderSystem.setShader(GameRenderer::getPositionTexShader);
 			isHovered = mouseX >= getX() && mouseY >= getY() && mouseX < getX() + width && mouseY < getY() + height;
-			guiGraphics.blitSprite(SPRITES.get(active, isHoveredOrFocused()), getX(), getY(), getWidth(), getHeight());
+			guiGraphics.blitWithBorder(WIDGETS_LOCATION, getX(), getY(), 0, 46 + (!active ? 0 : (isHoveredOrFocused() ? 40 : 20)), width, height, 200, 20, 2, 3, 2, 2);
 
 			if (!blockToRender.isEmpty()) {
 				guiGraphics.renderItem(blockToRender, getX() + 2, getY() + 3);
@@ -63,13 +71,17 @@ public class PictureButton extends Button {
 				guiGraphics.renderItem(itemToRender, getX() + 2, getY() + 2);
 				guiGraphics.renderItemDecorations(font, itemToRender, getX() + 2, getY() + 2, "");
 			}
-			else if (getSpriteLocation() != null)
-				guiGraphics.blitSprite(getSpriteLocation(), getX() + drawOffsetX, getY() + drawOffsetY, drawWidth, drawHeight);
+			else {
+				ResourceLocation texture = getTextureLocation();
+
+				if (texture != null)
+					guiGraphics.blit(texture, getX() + drawOffsetX, getY() + drawOffsetY, drawWidth, drawHeight, u, v, drawWidth, drawHeight, textureWidth, textureHeight);
+			}
 		}
 	}
 
-	public ResourceLocation getSpriteLocation() {
-		return sprite;
+	public ResourceLocation getTextureLocation() {
+		return textureLocation;
 	}
 
 	public ItemStack getItemStack() {

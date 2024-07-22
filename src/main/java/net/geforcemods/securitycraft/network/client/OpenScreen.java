@@ -1,8 +1,9 @@
 package net.geforcemods.securitycraft.network.client;
 
+import java.util.function.Supplier;
+
 import net.geforcemods.securitycraft.ClientHandler;
 import net.geforcemods.securitycraft.SCContent;
-import net.geforcemods.securitycraft.SecurityCraft;
 import net.geforcemods.securitycraft.api.IPasscodeProtected;
 import net.geforcemods.securitycraft.blockentities.AlarmBlockEntity;
 import net.geforcemods.securitycraft.blockentities.RiftStabilizerBlockEntity;
@@ -11,43 +12,19 @@ import net.geforcemods.securitycraft.blockentities.SonicSecuritySystemBlockEntit
 import net.geforcemods.securitycraft.util.PlayerUtils;
 import net.geforcemods.securitycraft.util.Utils;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.network.NetworkEvent;
 
-public class OpenScreen implements CustomPacketPayload {
-	public static final Type<OpenScreen> TYPE = new Type<>(SecurityCraft.resLoc("open_screen"));
-	public static final StreamCodec<RegistryFriendlyByteBuf, OpenScreen> STREAM_CODEC = new StreamCodec<>() {
-		public OpenScreen decode(RegistryFriendlyByteBuf buf) {
-			DataType dataType = buf.readEnum(DataType.class);
-
-			if (dataType.needsPosition)
-				return new OpenScreen(dataType, buf.readBlockPos());
-			else if (dataType == DataType.CHANGE_PASSCODE_FOR_ENTITY || dataType == DataType.CHECK_PASSCODE_FOR_ENTITY || dataType == DataType.SET_PASSCODE_FOR_ENTITY)
-				return new OpenScreen(dataType, buf.readVarInt());
-			else
-				return new OpenScreen(dataType);
-		}
-
-		@Override
-		public void encode(RegistryFriendlyByteBuf buf, OpenScreen packet) {
-			buf.writeEnum(packet.dataType);
-
-			if (packet.dataType.needsPosition)
-				buf.writeBlockPos(packet.pos);
-			else if (packet.dataType == DataType.CHANGE_PASSCODE_FOR_ENTITY || packet.dataType == DataType.CHECK_PASSCODE_FOR_ENTITY || packet.dataType == DataType.SET_PASSCODE_FOR_ENTITY)
-				buf.writeVarInt(packet.entityId);
-		}
-	};
+public class OpenScreen {
 	private DataType dataType;
 	private BlockPos pos;
+	private CompoundTag tag;
 	private int entityId;
 
 	public OpenScreen() {}
@@ -59,24 +36,45 @@ public class OpenScreen implements CustomPacketPayload {
 			throw new IllegalArgumentException(String.format("The DataType %s needs a position, but none was supplied.", dataType.name()));
 	}
 
-	public OpenScreen(DataType dataType, int entityId) {
-		this.dataType = dataType;
-		this.entityId = entityId;
-	}
-
 	public OpenScreen(DataType dataType, BlockPos pos) {
 		this.dataType = dataType;
 		this.pos = pos;
 	}
 
-	@Override
-	public Type<? extends CustomPacketPayload> type() {
-		return TYPE;
+	public OpenScreen(DataType dataType, CompoundTag tag) {
+		this.dataType = dataType;
+		this.tag = tag;
 	}
 
-	public void handle(IPayloadContext ctx) {
-		Player player = ctx.player();
-		Level level = player.level();
+	public OpenScreen(DataType dataType, int entityId) {
+		this.dataType = dataType;
+		this.entityId = entityId;
+	}
+
+	public OpenScreen(FriendlyByteBuf buf) {
+		dataType = buf.readEnum(DataType.class);
+
+		if (dataType.needsPosition)
+			pos = buf.readBlockPos();
+		else if (dataType == DataType.SENTRY_REMOTE_ACCESS_TOOL)
+			tag = buf.readNbt();
+		else if (dataType == DataType.CHANGE_PASSCODE_FOR_ENTITY || dataType == DataType.CHECK_PASSCODE_FOR_ENTITY || dataType == DataType.SET_PASSCODE_FOR_ENTITY)
+			entityId = buf.readVarInt();
+	}
+
+	public void encode(FriendlyByteBuf buf) {
+		buf.writeEnum(dataType);
+
+		if (dataType.needsPosition)
+			buf.writeBlockPos(pos);
+		else if (dataType == DataType.SENTRY_REMOTE_ACCESS_TOOL)
+			buf.writeNbt(tag);
+		else if (dataType == DataType.CHANGE_PASSCODE_FOR_ENTITY || dataType == DataType.CHECK_PASSCODE_FOR_ENTITY || dataType == DataType.SET_PASSCODE_FOR_ENTITY)
+			buf.writeVarInt(entityId);
+	}
+
+	public void handle(Supplier<NetworkEvent.Context> ctx) {
+		Level level = ClientHandler.getClientLevel();
 
 		switch (dataType) {
 			case ALARM:
@@ -85,8 +83,8 @@ public class OpenScreen implements CustomPacketPayload {
 
 				break;
 			case CHANGE_PASSCODE:
-				if (level.getBlockEntity(pos) instanceof IPasscodeProtected passcodeProtected)
-					ClientHandler.displayUniversalKeyChangerScreen((BlockEntity) passcodeProtected);
+				if (level.getBlockEntity(pos) instanceof IPasscodeProtected be)
+					ClientHandler.displayUniversalKeyChangerScreen((BlockEntity) be);
 
 				break;
 			case CHANGE_PASSCODE_FOR_ENTITY:
@@ -100,7 +98,7 @@ public class OpenScreen implements CustomPacketPayload {
 
 				break;
 			case CHECK_PASSCODE_FOR_BRIEFCASE:
-				ItemStack briefcaseStack = PlayerUtils.getItemStackFromAnyHand(player, SCContent.BRIEFCASE.get());
+				ItemStack briefcaseStack = PlayerUtils.getItemStackFromAnyHand(ClientHandler.getClientPlayer(), SCContent.BRIEFCASE.get());
 
 				if (!briefcaseStack.isEmpty())
 					ClientHandler.displayBriefcasePasscodeScreen(briefcaseStack.getHoverName());
@@ -122,10 +120,12 @@ public class OpenScreen implements CustomPacketPayload {
 
 				break;
 			case SENTRY_REMOTE_ACCESS_TOOL:
-				ItemStack srat = PlayerUtils.getItemStackFromAnyHand(player, SCContent.SENTRY_REMOTE_ACCESS_TOOL.get());
+				ItemStack srat = PlayerUtils.getItemStackFromAnyHand(ClientHandler.getClientPlayer(), SCContent.SENTRY_REMOTE_ACCESS_TOOL.get());
 
-				if (!srat.isEmpty())
+				if (!srat.isEmpty()) {
+					srat.setTag(tag);
 					ClientHandler.displaySRATScreen(srat);
+				}
 
 				break;
 			case SET_PASSCODE:
@@ -134,7 +134,7 @@ public class OpenScreen implements CustomPacketPayload {
 
 				break;
 			case SET_PASSCODE_FOR_BRIEFCASE:
-				ItemStack briefcase = PlayerUtils.getItemStackFromAnyHand(player, SCContent.BRIEFCASE.get());
+				ItemStack briefcase = PlayerUtils.getItemStackFromAnyHand(ClientHandler.getClientPlayer(), SCContent.BRIEFCASE.get());
 
 				if (!briefcase.isEmpty())
 					ClientHandler.displayBriefcaseSetupScreen(briefcase.getHoverName().plainCopy().append(Component.literal(" ")).append(Utils.localize("gui.securitycraft:passcode.setup")));

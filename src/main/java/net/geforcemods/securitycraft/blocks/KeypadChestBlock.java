@@ -3,11 +3,13 @@ package net.geforcemods.securitycraft.blocks;
 import java.util.Optional;
 
 import net.geforcemods.securitycraft.SCContent;
+import net.geforcemods.securitycraft.api.IDisguisable;
 import net.geforcemods.securitycraft.api.IModuleInventory;
 import net.geforcemods.securitycraft.api.IOwnable;
 import net.geforcemods.securitycraft.api.IPasscodeConvertible;
 import net.geforcemods.securitycraft.api.IPasscodeProtected;
 import net.geforcemods.securitycraft.blockentities.KeypadChestBlockEntity;
+import net.geforcemods.securitycraft.compat.IOverlayDisplay;
 import net.geforcemods.securitycraft.misc.ModuleType;
 import net.geforcemods.securitycraft.misc.OwnershipEvent;
 import net.geforcemods.securitycraft.misc.SaltData;
@@ -23,8 +25,10 @@ import net.minecraft.stats.Stats;
 import net.minecraft.util.Mth;
 import net.minecraft.world.CompoundContainer;
 import net.minecraft.world.Container;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.MenuProvider;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -32,6 +36,7 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
+import net.minecraft.world.level.BlockAndTintGetter;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelReader;
@@ -40,7 +45,9 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.DoubleBlockCombiner;
 import net.minecraft.world.level.block.Mirror;
+import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.Rotation;
+import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityTicker;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -49,10 +56,13 @@ import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.ChestType;
 import net.minecraft.world.phys.BlockHitResult;
-import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.common.Tags;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.shapes.CollisionContext;
+import net.minecraft.world.phys.shapes.VoxelShape;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.common.Tags;
 
-public class KeypadChestBlock extends ChestBlock {
+public class KeypadChestBlock extends ChestBlock implements IOverlayDisplay, IDisguisable {
 	private static final DoubleBlockCombiner.Combiner<ChestBlockEntity, Optional<MenuProvider>> CONTAINER_MERGER = new DoubleBlockCombiner.Combiner<>() {
 		@Override
 		public Optional<MenuProvider> acceptDouble(final ChestBlockEntity chest1, final ChestBlockEntity chest2) {
@@ -71,6 +81,11 @@ public class KeypadChestBlock extends ChestBlock {
 
 				@Override
 				public Component getDisplayName() {
+					//makes sure Jade's overlay is not too wide when the chest is disguised
+					//one side effect is the title in the chest's screen is also changed
+					if (((KeypadChestBlockEntity) chest1).isModuleEnabled(ModuleType.DISGUISE))
+						return Utils.localize(IDisguisable.getDisguisedStateOrDefault(chest1.getBlockState(), chest1.getLevel(), chest1.getBlockPos()).getBlock().getDescriptionId());
+
 					if (chest1.hasCustomName())
 						return chest1.getDisplayName();
 					else
@@ -95,7 +110,7 @@ public class KeypadChestBlock extends ChestBlock {
 	}
 
 	@Override
-	public InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
+	public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
 		if (!level.isClientSide && !isBlocked(level, pos)) {
 			KeypadChestBlockEntity be = (KeypadChestBlockEntity) level.getBlockEntity(pos);
 
@@ -110,7 +125,7 @@ public class KeypadChestBlock extends ChestBlock {
 
 					activate(state, level, pos, player);
 				}
-				else
+				else if (!player.getItemInHand(hand).is(SCContent.CODEBREAKER.get()))
 					be.openPasscodeGUI(level, pos, player);
 			}
 		}
@@ -120,7 +135,7 @@ public class KeypadChestBlock extends ChestBlock {
 
 	public void activate(BlockState state, Level level, BlockPos pos, Player player) {
 		if (!level.isClientSide) {
-			KeypadChestBlock block = (KeypadChestBlock) state.getBlock();
+			ChestBlock block = (ChestBlock) state.getBlock();
 			MenuProvider menuProvider = block.getMenuProvider(state, level, pos);
 
 			if (menuProvider != null) {
@@ -135,7 +150,7 @@ public class KeypadChestBlock extends ChestBlock {
 		super.setPlacedBy(level, pos, state, entity, stack);
 
 		if (entity instanceof Player player) {
-			NeoForge.EVENT_BUS.post(new OwnershipEvent(level, pos, player));
+			MinecraftForge.EVENT_BUS.post(new OwnershipEvent(level, pos, player));
 
 			if (state.getValue(TYPE) != ChestType.SINGLE) {
 				KeypadChestBlockEntity thisBe = (KeypadChestBlockEntity) level.getBlockEntity(pos);
@@ -235,6 +250,81 @@ public class KeypadChestBlock extends ChestBlock {
 		return state.rotate(mirror.getRotation(state.getValue(FACING)));
 	}
 
+	@Override
+	public VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext ctx) {
+		BlockState disguisedState = IDisguisable.getDisguisedStateOrDefault(state, level, pos);
+
+		if (disguisedState.getBlock() != this)
+			return disguisedState.getShape(level, pos, ctx);
+		else
+			return super.getShape(state, level, pos, ctx);
+	}
+
+	@Override
+	public int getLightEmission(BlockState state, BlockGetter level, BlockPos pos) {
+		BlockState disguisedState = IDisguisable.getDisguisedStateOrDefault(state, level, pos);
+
+		if (disguisedState.getBlock() != this)
+			return disguisedState.getLightEmission(level, pos);
+		else
+			return super.getLightEmission(state, level, pos);
+	}
+
+	@Override
+	public SoundType getSoundType(BlockState state, LevelReader level, BlockPos pos, Entity entity) {
+		BlockState disguisedState = IDisguisable.getDisguisedStateOrDefault(state, level, pos);
+
+		if (disguisedState.getBlock() != this)
+			return disguisedState.getSoundType(level, pos, entity);
+		else
+			return super.getSoundType(state, level, pos, entity);
+	}
+
+	@Override
+	public float getShadeBrightness(BlockState state, BlockGetter level, BlockPos pos) {
+		BlockState disguisedState = IDisguisable.getDisguisedStateOrDefault(state, level, pos);
+
+		if (disguisedState.getBlock() != this)
+			return disguisedState.getShadeBrightness(level, pos);
+		else
+			return super.getShadeBrightness(state, level, pos);
+	}
+
+	@Override
+	public int getLightBlock(BlockState state, BlockGetter level, BlockPos pos) {
+		BlockState disguisedState = IDisguisable.getDisguisedStateOrDefault(state, level, pos);
+
+		if (disguisedState.getBlock() != this)
+			return disguisedState.getLightBlock(level, pos);
+		else
+			return super.getLightBlock(state, level, pos);
+	}
+
+	@Override
+	public BlockState getAppearance(BlockState state, BlockAndTintGetter level, BlockPos pos, Direction side, BlockState queryState, BlockPos queryPos) {
+		return IDisguisable.getDisguisedStateOrDefault(state, level, pos);
+	}
+
+	@Override
+	public ItemStack getDisplayStack(Level level, BlockState state, BlockPos pos) {
+		return getDisguisedStack(level, pos);
+	}
+
+	@Override
+	public boolean shouldShowSCInfo(Level level, BlockState state, BlockPos pos) {
+		return getDisguisedStack(level, pos).getItem() == asItem();
+	}
+
+	@Override
+	public ItemStack getCloneItemStack(BlockState state, HitResult target, BlockGetter level, BlockPos pos, Player player) {
+		return getDisguisedStack(level, pos);
+	}
+
+	@Override
+	public RenderShape getRenderShape(BlockState state) {
+		return RenderShape.MODEL;
+	}
+
 	public static class Convertible implements IPasscodeConvertible {
 		@Override
 		public boolean isUnprotectedBlock(BlockState state) {
@@ -291,11 +381,11 @@ public class KeypadChestBlock extends ChestBlock {
 			}
 
 			chest.unpackLootTable(player); //generate loot (if any), so items don't spill out when converting and no additional loot table is generated
-			tag = chest.saveWithFullMetadata(level.registryAccess());
+			tag = chest.saveWithFullMetadata();
 			chest.clearContent();
 			level.setBlockAndUpdate(pos, convertedBlock.defaultBlockState().setValue(FACING, facing).setValue(TYPE, type));
 			chest = (ChestBlockEntity) level.getBlockEntity(pos);
-			chest.loadWithComponents(tag, level.registryAccess());
+			chest.load(tag);
 
 			if (protect) {
 				if (player != null)

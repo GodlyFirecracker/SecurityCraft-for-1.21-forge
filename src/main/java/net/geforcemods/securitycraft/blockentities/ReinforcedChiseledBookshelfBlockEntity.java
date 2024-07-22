@@ -9,9 +9,9 @@ import net.geforcemods.securitycraft.api.IOwnable;
 import net.geforcemods.securitycraft.api.Owner;
 import net.geforcemods.securitycraft.misc.ModuleType;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
@@ -34,33 +34,44 @@ public class ReinforcedChiseledBookshelfBlockEntity extends ChiseledBookShelfBlo
 	}
 
 	@Override
-	public void loadAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.loadAdditional(tag, lookupProvider);
+	public void load(CompoundTag tag) {
+		super.load(tag);
 
 		owner.load(tag);
-		modules = readModuleInventory(tag, lookupProvider);
+		modules = readModuleInventory(tag);
 		moduleStates = readModuleStates(tag);
 	}
 
 	@Override
-	public void saveAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.saveAdditional(tag, lookupProvider);
+	public void saveAdditional(CompoundTag tag) {
+		super.saveAdditional(tag);
 
 		if (owner != null)
 			owner.save(tag, needsValidation());
 
-		writeModuleInventory(tag, lookupProvider);
+		writeModuleInventory(tag);
 		writeModuleStates(tag);
 	}
 
 	@Override
-	public CompoundTag getUpdateTag(HolderLookup.Provider lookupProvider) {
-		return saveCustomOnly(lookupProvider);
+	public CompoundTag getUpdateTag() {
+		return saveWithoutMetadata();
 	}
 
 	@Override
 	public ClientboundBlockEntityDataPacket getUpdatePacket() {
 		return ClientboundBlockEntityDataPacket.create(this);
+	}
+
+	@Override
+	public void onDataPacket(Connection net, ClientboundBlockEntityDataPacket packet) {
+		super.onDataPacket(net, packet);
+		handleUpdateTag(packet.getTag());
+	}
+
+	@Override
+	public void handleUpdateTag(CompoundTag tag) {
+		load(tag);
 	}
 
 	@Override

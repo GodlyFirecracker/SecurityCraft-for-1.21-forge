@@ -2,6 +2,7 @@ package net.geforcemods.securitycraft.blockentities;
 
 import net.geforcemods.securitycraft.ConfigHandler;
 import net.geforcemods.securitycraft.SCContent;
+import net.geforcemods.securitycraft.SecurityCraft;
 import net.geforcemods.securitycraft.api.CustomizableBlockEntity;
 import net.geforcemods.securitycraft.api.Option;
 import net.geforcemods.securitycraft.api.Option.BooleanOption;
@@ -15,7 +16,6 @@ import net.geforcemods.securitycraft.util.AlarmSoundHandler;
 import net.geforcemods.securitycraft.util.ITickingBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
@@ -27,7 +27,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraftforge.network.PacketDistributor;
 
 public class AlarmBlockEntity extends CustomizableBlockEntity implements ITickingBlockEntity {
 	public static final int MAXIMUM_ALARM_SOUND_LENGTH = 3600; //one hour
@@ -58,7 +58,7 @@ public class AlarmBlockEntity extends CustomizableBlockEntity implements ITickin
 				for (ServerPlayer player : ((ServerLevel) level).getPlayers(p -> p.blockPosition().distSqr(pos) <= rangeSqr)) {
 					float volume = (float) (1.0F - ((player.blockPosition().distSqr(pos)) / rangeSqr));
 
-					PacketDistributor.sendToPlayer(player, new PlayAlarmSound(worldPosition, soundEventHolder, volume, getPitch(), player.getCommandSenderWorld().random.nextLong()));
+					SecurityCraft.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new PlayAlarmSound(worldPosition, soundEventHolder, volume, getPitch(), player.getCommandSenderWorld().random.nextLong()));
 				}
 			}
 
@@ -67,8 +67,8 @@ public class AlarmBlockEntity extends CustomizableBlockEntity implements ITickin
 	}
 
 	@Override
-	public void saveAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.saveAdditional(tag, lookupProvider);
+	public void saveAdditional(CompoundTag tag) {
+		super.saveAdditional(tag);
 		tag.putInt("cooldown", cooldown);
 		tag.putBoolean("isPowered", isPowered);
 		tag.putString("sound", sound.getLocation().toString());
@@ -77,14 +77,14 @@ public class AlarmBlockEntity extends CustomizableBlockEntity implements ITickin
 	}
 
 	@Override
-	public void loadAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.loadAdditional(tag, lookupProvider);
+	public void load(CompoundTag tag) {
+		super.load(tag);
 
 		cooldown = tag.getInt("cooldown");
 		isPowered = tag.getBoolean("isPowered");
 
 		if (tag.contains("sound", Tag.TAG_STRING))
-			setSound(ResourceLocation.parse(tag.getString("sound")));
+			setSound(new ResourceLocation(tag.getString("sound")));
 		else
 			setSound(SCSounds.ALARM.location);
 

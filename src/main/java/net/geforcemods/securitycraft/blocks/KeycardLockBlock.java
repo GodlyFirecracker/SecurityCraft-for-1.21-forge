@@ -1,11 +1,8 @@
 package net.geforcemods.securitycraft.blocks;
 
 import net.geforcemods.securitycraft.ConfigHandler;
-import net.geforcemods.securitycraft.SCContent;
 import net.geforcemods.securitycraft.api.Owner;
 import net.geforcemods.securitycraft.blockentities.KeycardLockBlockEntity;
-import net.geforcemods.securitycraft.components.KeycardData;
-import net.geforcemods.securitycraft.components.OwnerData;
 import net.geforcemods.securitycraft.items.KeycardItem;
 import net.geforcemods.securitycraft.items.UniversalKeyChangerItem;
 import net.geforcemods.securitycraft.util.PlayerUtils;
@@ -13,11 +10,10 @@ import net.geforcemods.securitycraft.util.TeamUtils;
 import net.geforcemods.securitycraft.util.Utils;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.ItemInteractionResult;
-import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
@@ -44,20 +40,21 @@ public class KeycardLockBlock extends AbstractPanelBlock {
 	}
 
 	@Override
-	public ItemInteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
-		return KeycardReaderBlock.<KeycardLockBlockEntity>useItemOn(stack, state, level, pos, player, hand, be -> {
+	public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
+		return KeycardReaderBlock.<KeycardLockBlockEntity>use(state, level, pos, player, hand, (stack, be) -> {
 			if (!be.isSetUp()) {
 				PlayerUtils.sendMessageToPlayer(player, Utils.localize(getDescriptionId()), Utils.localize("messages.securitycraft:keycard_lock.not_set_up"), ChatFormatting.RED);
 				return;
 			}
 
 			if (stack.getItem() instanceof KeycardItem) {
-				KeycardData keycardData = stack.get(SCContent.KEYCARD_DATA);
+				boolean hasTag = stack.hasTag();
 
-				if (keycardData == null)
+				if (!hasTag || !stack.getTag().getBoolean("linked"))
 					PlayerUtils.sendMessageToPlayer(player, Utils.localize(getDescriptionId()), Utils.localize("messages.securitycraft:keycard_lock.unlinked_keycard"), ChatFormatting.RED);
-				else {
-					Owner keycardOwner = stack.getOrDefault(SCContent.OWNER_DATA, OwnerData.DEFAULT).toOwner();
+				else if (hasTag) {
+					CompoundTag tag = stack.getTag();
+					Owner keycardOwner = new Owner(tag.getString("ownerName"), tag.getString("ownerUUID"));
 
 					if ((ConfigHandler.SERVER.enableTeamOwnership.get() && !TeamUtils.areOnSameTeam(be.getOwner(), keycardOwner)) || !be.getOwner().getUUID().equals(keycardOwner.getUUID()))
 						PlayerUtils.sendMessageToPlayer(player, Utils.localize(getDescriptionId()), Utils.localize("messages.securitycraft:keycard_lock.different_owner"), ChatFormatting.RED);
@@ -68,7 +65,7 @@ public class KeycardLockBlock extends AbstractPanelBlock {
 
 			if (stack.getItem() instanceof UniversalKeyChangerItem) {
 				if (be.isOwnedBy(player)) {
-					stack.hurtAndBreak(1, player, LivingEntity.getSlotForHand(hand));
+					stack.hurtAndBreak(1, player, p -> p.broadcastBreakEvent(hand));
 					be.reset();
 					PlayerUtils.sendMessageToPlayer(player, Utils.localize(getDescriptionId()), Utils.localize("messages.securitycraft:keycard_lock.reset"), ChatFormatting.GREEN);
 				}

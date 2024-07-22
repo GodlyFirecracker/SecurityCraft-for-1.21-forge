@@ -17,10 +17,10 @@ import net.geforcemods.securitycraft.util.BlockUtils;
 import net.geforcemods.securitycraft.util.ITickingBlockEntity;
 import net.geforcemods.securitycraft.util.TeamUtils;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
@@ -119,7 +119,7 @@ public class SecureRedstoneInterfaceBlockEntity extends DisguisableBlockEntity i
 			Vec3 particlePos = receiverPos.lerp(senderPos, i / step);
 
 			for (ServerPlayer player : players) {
-				level.sendParticles(player, new InterfaceHighlightParticleOptions(color, particleDirection, 1.0F), false, particlePos.x, particlePos.y, particlePos.z, 1, 0.0D, 0.0D, 0.0D, 0.0D);
+				level.sendParticles(player, new InterfaceHighlightParticleOptions(new Vector3f(color.x, color.y, color.z), particleDirection, 1.0F), false, particlePos.x, particlePos.y, particlePos.z, 1, 0.0D, 0.0D, 0.0D, 0.0D);
 			}
 		}
 	}
@@ -167,8 +167,8 @@ public class SecureRedstoneInterfaceBlockEntity extends DisguisableBlockEntity i
 	}
 
 	@Override
-	public void loadAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.loadAdditional(tag, lookupProvider);
+	public void load(CompoundTag tag) {
+		super.load(tag);
 		sender = tag.getBoolean("sender");
 		power = tag.getInt("power");
 		frequency = tag.getInt("frequency");
@@ -180,8 +180,8 @@ public class SecureRedstoneInterfaceBlockEntity extends DisguisableBlockEntity i
 	}
 
 	@Override
-	public void saveAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.saveAdditional(tag, lookupProvider);
+	public void saveAdditional(CompoundTag tag) {
+		super.saveAdditional(tag);
 		tag.putBoolean("sender", sender);
 		tag.putInt("power", power);
 		tag.putInt("frequency", frequency);
@@ -409,7 +409,7 @@ public class SecureRedstoneInterfaceBlockEntity extends DisguisableBlockEntity i
 	}
 
 	public void setSenderRange(int senderRange) {
-		senderRange = Math.clamp(senderRange, 1, 64);
+		senderRange = Mth.clamp(senderRange, 1, 64);
 
 		if (getSenderRange() == senderRange || !getOwner().isValidated())
 			return;

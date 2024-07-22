@@ -1,36 +1,41 @@
 package net.geforcemods.securitycraft.network.server;
 
+import java.util.function.Supplier;
+
 import net.geforcemods.securitycraft.SCContent;
-import net.geforcemods.securitycraft.SecurityCraft;
 import net.geforcemods.securitycraft.blockentities.BlockPocketManagerBlockEntity;
 import net.geforcemods.securitycraft.util.PlayerUtils;
 import net.geforcemods.securitycraft.util.Utils;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.world.entity.player.Player;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.network.NetworkEvent;
 
-public record AssembleBlockPocket(BlockPos pos, int size) implements CustomPacketPayload {
-	public static final Type<AssembleBlockPocket> TYPE = new Type<>(SecurityCraft.resLoc("assemble_block_pocket"));
-	//@formatter:off
-	public static final StreamCodec<RegistryFriendlyByteBuf, AssembleBlockPocket> STREAM_CODEC = StreamCodec.composite(
-			BlockPos.STREAM_CODEC, AssembleBlockPocket::pos,
-			ByteBufCodecs.VAR_INT, AssembleBlockPocket::size,
-			AssembleBlockPocket::new);
-	//@formatter:on
+public class AssembleBlockPocket {
+	private BlockPos pos;
+	private int size;
 
-	@Override
-	public Type<? extends CustomPacketPayload> type() {
-		return TYPE;
+	public AssembleBlockPocket() {}
+
+	public AssembleBlockPocket(BlockPocketManagerBlockEntity be) {
+		pos = be.getBlockPos();
+		size = be.getSize();
 	}
 
-	public void handle(IPayloadContext ctx) {
-		Player player = ctx.player();
+	public AssembleBlockPocket(FriendlyByteBuf buf) {
+		pos = buf.readBlockPos();
+		size = buf.readInt();
+	}
+
+	public void encode(FriendlyByteBuf buf) {
+		buf.writeBlockPos(pos);
+		buf.writeInt(size);
+	}
+
+	public void handle(Supplier<NetworkEvent.Context> ctx) {
+		Player player = ctx.get().getSender();
 
 		if (player.level().getBlockEntity(pos) instanceof BlockPocketManagerBlockEntity be && be.isOwnedBy(player)) {
 			MutableComponent feedback;

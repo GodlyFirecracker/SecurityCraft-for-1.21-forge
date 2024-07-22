@@ -6,7 +6,6 @@ import net.geforcemods.securitycraft.misc.OwnershipEvent;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.ItemInteractionResult;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -19,7 +18,7 @@ import net.minecraft.world.level.block.entity.ChiseledBookShelfBlockEntity;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
-import net.neoforged.neoforge.common.NeoForge;
+import net.minecraftforge.common.MinecraftForge;
 
 public class ReinforcedChiseledBookshelfBlock extends ChiseledBookShelfBlock implements IReinforcedBlock {
 	public ReinforcedChiseledBookshelfBlock(BlockBehaviour.Properties properties) {
@@ -27,17 +26,9 @@ public class ReinforcedChiseledBookshelfBlock extends ChiseledBookShelfBlock imp
 	}
 
 	@Override
-	public ItemInteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
+	public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
 		if (level.getBlockEntity(pos) instanceof ReinforcedChiseledBookshelfBlockEntity be && (be.isOwnedBy(player) || be.isAllowed(player)))
-			return super.useItemOn(stack, state, level, pos, player, hand, hit);
-
-		return ItemInteractionResult.SKIP_DEFAULT_BLOCK_INTERACTION;
-	}
-
-	@Override
-	public InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
-		if (level.getBlockEntity(pos) instanceof ReinforcedChiseledBookshelfBlockEntity be && (be.isOwnedBy(player) || be.isAllowed(player)))
-			return super.useWithoutItem(state, level, pos, player, hit);
+			return super.use(state, level, pos, player, hand, hit);
 
 		return InteractionResult.PASS;
 	}
@@ -63,6 +54,6 @@ public class ReinforcedChiseledBookshelfBlock extends ChiseledBookShelfBlock imp
 	@Override
 	public void setPlacedBy(Level level, BlockPos pos, BlockState state, LivingEntity placer, ItemStack stack) {
 		if (placer instanceof Player player)
-			NeoForge.EVENT_BUS.post(new OwnershipEvent(level, pos, player));
+			MinecraftForge.EVENT_BUS.post(new OwnershipEvent(level, pos, player));
 	}
 }

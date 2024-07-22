@@ -23,8 +23,8 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.feature.configurations.TreeConfiguration;
-import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.common.util.TriState;
+import net.minecraftforge.common.IPlantable;
+import net.minecraftforge.common.MinecraftForge;
 
 public class ReinforcedSnowyDirtBlock extends SnowyDirtBlock implements IReinforcedBlock, EntityBlock {
 	private Block vanillaBlock;
@@ -41,8 +41,8 @@ public class ReinforcedSnowyDirtBlock extends SnowyDirtBlock implements IReinfor
 	}
 
 	@Override
-	public TriState canSustainPlant(BlockState state, BlockGetter level, BlockPos pos, Direction facing, BlockState plant) {
-		return SCContent.REINFORCED_DIRT.get().canSustainPlant(state, level, pos, facing, plant);
+	public boolean canSustainPlant(BlockState state, BlockGetter level, BlockPos pos, Direction facing, IPlantable plantable) {
+		return SCContent.REINFORCED_DIRT.get().canSustainPlant(state, level, pos, facing, plantable);
 	}
 
 	@Override
@@ -58,7 +58,7 @@ public class ReinforcedSnowyDirtBlock extends SnowyDirtBlock implements IReinfor
 	@Override
 	public void setPlacedBy(Level level, BlockPos pos, BlockState state, LivingEntity placer, ItemStack stack) {
 		if (placer instanceof Player player)
-			NeoForge.EVENT_BUS.post(new OwnershipEvent(level, pos, player));
+			MinecraftForge.EVENT_BUS.post(new OwnershipEvent(level, pos, player));
 	}
 
 	@Override

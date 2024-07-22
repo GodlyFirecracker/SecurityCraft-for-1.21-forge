@@ -1,0 +1,25 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "group": "securitycraft:modules",
+  "key": {
+    "I": {
+      "tag": "forge:ingots/iron"
+    },
+    "P": {
+      "item": "minecraft:paper"
+    },
+    "S": {
+      "tag": "forge:ender_pearls"
+    }
+  },
+  "pattern": [
+    "III",
+    "IPI",
+    "ISI"
+  ],
+  "result": {
+    "item": "securitycraft:smart_module"
+  },
+  "show_notification": true
+}

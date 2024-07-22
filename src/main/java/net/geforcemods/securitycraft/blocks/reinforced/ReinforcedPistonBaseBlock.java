@@ -40,8 +40,8 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.PistonType;
 import net.minecraft.world.level.gameevent.GameEvent;
 import net.minecraft.world.level.material.PushReaction;
-import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.event.EventHooks;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.ForgeEventFactory;
 
 public class ReinforcedPistonBaseBlock extends PistonBaseBlock implements IReinforcedBlock, EntityBlock {
 	public ReinforcedPistonBaseBlock(boolean sticky, BlockBehaviour.Properties properties) {
@@ -51,13 +51,13 @@ public class ReinforcedPistonBaseBlock extends PistonBaseBlock implements IReinf
 	@Override
 	public void setPlacedBy(Level level, BlockPos pos, BlockState state, LivingEntity placer, ItemStack stack) {
 		if (placer instanceof Player player)
-			NeoForge.EVENT_BUS.post(new OwnershipEvent(level, pos, player));
+			MinecraftForge.EVENT_BUS.post(new OwnershipEvent(level, pos, player));
 
 		super.setPlacedBy(level, pos, state, placer, stack);
 	}
 
 	@Override
-	protected void onPlace(BlockState state, Level level, BlockPos pos, BlockState oldState, boolean isMoving) {
+	public void onPlace(BlockState state, Level level, BlockPos pos, BlockState oldState, boolean isMoving) {
 		if (!oldState.is(state.getBlock()) && !level.isClientSide && level.getBlockEntity(pos) instanceof ValidationOwnableBlockEntity)
 			checkIfExtend(level, pos, state);
 	}
@@ -126,7 +126,7 @@ public class ReinforcedPistonBaseBlock extends PistonBaseBlock implements IReinf
 		}
 
 		if (id == 0) {
-			if (EventHooks.onPistonMovePre(level, pos, direction, true))
+			if (ForgeEventFactory.onPistonMovePre(level, pos, direction, true))
 				return false;
 
 			if (!this.moveBlocks(level, pos, direction, true))
@@ -137,7 +137,7 @@ public class ReinforcedPistonBaseBlock extends PistonBaseBlock implements IReinf
 			level.gameEvent(GameEvent.BLOCK_ACTIVATE, pos, GameEvent.Context.of(extendedState));
 		}
 		else if (id == 1 || id == 2) {
-			if (EventHooks.onPistonMovePre(level, pos, direction, false))
+			if (ForgeEventFactory.onPistonMovePre(level, pos, direction, false))
 				return false;
 
 			if (level.getBlockEntity(pos.relative(direction)) instanceof ReinforcedPistonMovingBlockEntity pistonBe)
@@ -147,7 +147,7 @@ public class ReinforcedPistonBaseBlock extends PistonBaseBlock implements IReinf
 			BlockState movingPiston = SCContent.REINFORCED_MOVING_PISTON.get().defaultBlockState().setValue(FACING, direction).setValue(MovingPistonBlock.TYPE, isSticky ? PistonType.STICKY : PistonType.DEFAULT);
 
 			level.setBlock(pos, movingPiston, 20);
-			level.setBlockEntity(ReinforcedMovingPistonBlock.newMovingBlockEntity(pos, movingPiston, defaultBlockState().setValue(FACING, Direction.from3DDataValue(param & 7)), be != null ? be.getUpdateTag(level.registryAccess()) : null, direction, false, true));
+			level.setBlockEntity(ReinforcedMovingPistonBlock.newMovingBlockEntity(pos, movingPiston, defaultBlockState().setValue(FACING, Direction.from3DDataValue(param & 7)), be != null ? be.getUpdateTag() : null, direction, false, true));
 			level.blockUpdated(pos, movingPiston.getBlock());
 			movingPiston.updateNeighbourShapes(level, pos, 2);
 
@@ -175,7 +175,7 @@ public class ReinforcedPistonBaseBlock extends PistonBaseBlock implements IReinf
 			level.gameEvent(GameEvent.BLOCK_DEACTIVATE, pos, GameEvent.Context.of(movingPiston));
 		}
 
-		EventHooks.onPistonMovePost(level, pos, direction, id == 0);
+		ForgeEventFactory.onPistonMovePost(level, pos, direction, id == 0);
 		return true;
 	}
 
@@ -273,7 +273,7 @@ public class ReinforcedPistonBaseBlock extends PistonBaseBlock implements IReinf
 				posToMove = posToMove.relative(direction);
 
 				if (beToMove != null) {
-					tag = beToMove.saveWithoutMetadata(level.registryAccess());
+					tag = beToMove.saveWithoutMetadata();
 					tag.putInt("x", posToMove.getX());
 					tag.putInt("y", posToMove.getY());
 					tag.putInt("z", posToMove.getZ());
@@ -296,7 +296,7 @@ public class ReinforcedPistonBaseBlock extends PistonBaseBlock implements IReinf
 
 				stateToPosMap.remove(frontPos);
 				level.setBlock(frontPos, movingPiston, 68);
-				level.setBlockEntity(ReinforcedMovingPistonBlock.newMovingBlockEntity(frontPos, movingPiston, pistonHead, headBe.getUpdateTag(level.registryAccess()), facing, true, true));
+				level.setBlockEntity(ReinforcedMovingPistonBlock.newMovingBlockEntity(frontPos, movingPiston, pistonHead, headBe.getUpdateTag(), facing, true, true));
 			}
 
 			BlockState air = Blocks.AIR.defaultBlockState();

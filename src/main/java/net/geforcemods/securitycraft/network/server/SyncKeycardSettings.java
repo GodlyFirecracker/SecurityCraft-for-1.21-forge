@@ -1,38 +1,52 @@
 package net.geforcemods.securitycraft.network.server;
 
-import java.util.Arrays;
-import java.util.Objects;
+import java.util.function.Supplier;
 
-import net.geforcemods.securitycraft.SCStreamCodecs;
-import net.geforcemods.securitycraft.SecurityCraft;
 import net.geforcemods.securitycraft.blockentities.KeycardReaderBlockEntity;
 import net.geforcemods.securitycraft.inventory.KeycardReaderMenu;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Player;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.network.NetworkEvent;
 
-public record SyncKeycardSettings(BlockPos pos, boolean[] acceptedLevels, int signature, boolean link) implements CustomPacketPayload {
+public class SyncKeycardSettings {
+	private BlockPos pos;
+	private int signature;
+	private boolean[] acceptedLevels;
+	private boolean link;
 
-	public static final Type<SyncKeycardSettings> TYPE = new Type<>(SecurityCraft.resLoc("sync_keycard_settings"));
-	//@formatter:off
-	public static final StreamCodec<RegistryFriendlyByteBuf, SyncKeycardSettings> STREAM_CODEC = StreamCodec.composite(
-			BlockPos.STREAM_CODEC, SyncKeycardSettings::pos,
-			SCStreamCodecs.BOOLEAN_ARRAY, SyncKeycardSettings::acceptedLevels,
-			ByteBufCodecs.VAR_INT, SyncKeycardSettings::signature,
-			ByteBufCodecs.BOOL, SyncKeycardSettings::link,
-			SyncKeycardSettings::new);
-	//@formatter:on
-	@Override
-	public Type<? extends CustomPacketPayload> type() {
-		return TYPE;
+	public SyncKeycardSettings() {}
+
+	public SyncKeycardSettings(BlockPos pos, boolean[] acceptedLevels, int signature, boolean link) {
+		this.pos = pos;
+		this.acceptedLevels = acceptedLevels;
+		this.signature = signature;
+		this.link = link;
 	}
 
-	public void handle(IPayloadContext ctx) {
-		Player player = ctx.player();
+	public SyncKeycardSettings(FriendlyByteBuf buf) {
+		pos = buf.readBlockPos();
+		signature = buf.readVarInt();
+		link = buf.readBoolean();
+		acceptedLevels = new boolean[5];
+
+		for (int i = 0; i < 5; i++) {
+			acceptedLevels[i] = buf.readBoolean();
+		}
+	}
+
+	public void encode(FriendlyByteBuf buf) {
+		buf.writeBlockPos(pos);
+		buf.writeVarInt(signature);
+		buf.writeBoolean(link);
+
+		for (int i = 0; i < 5; i++) {
+			buf.writeBoolean(acceptedLevels[i]);
+		}
+	}
+
+	public void handle(Supplier<NetworkEvent.Context> ctx) {
+		Player player = ctx.get().getSender();
 
 		if (player.level().getBlockEntity(pos) instanceof KeycardReaderBlockEntity be) {
 			boolean isOwner = be.isOwnedBy(player);
@@ -47,30 +61,5 @@ public record SyncKeycardSettings(BlockPos pos, boolean[] acceptedLevels, int si
 					keycardReaderContainer.link();
 			}
 		}
-	}
-
-	@Override
-	public boolean equals(Object obj) {
-		if (this == obj)
-			return true;
-
-		if (obj == null || getClass() != obj.getClass())
-			return false;
-
-		SyncKeycardSettings skc = (SyncKeycardSettings) obj;
-
-		return pos != null && pos.equals(skc.pos) && Arrays.equals(acceptedLevels, skc.acceptedLevels) && signature == skc.signature && link == skc.link;
-	}
-
-	@Override
-	public int hashCode() {
-		int arrayHash = Arrays.hashCode(acceptedLevels);
-
-		return Objects.hash(pos, arrayHash, signature, link);
-	}
-
-	@Override
-	public String toString() {
-		return "SyncKeycardSettings{" + "pos=" + pos + ", acceptedLevels=" + Arrays.toString(acceptedLevels) + ", signature=" + signature + ", link=" + link + "}";
 	}
 }

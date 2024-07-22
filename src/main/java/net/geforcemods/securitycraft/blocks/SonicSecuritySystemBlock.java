@@ -3,6 +3,8 @@ package net.geforcemods.securitycraft.blocks;
 import java.util.stream.Stream;
 
 import net.geforcemods.securitycraft.SCContent;
+import net.geforcemods.securitycraft.SecurityCraft;
+import net.geforcemods.securitycraft.api.IDisguisable;
 import net.geforcemods.securitycraft.api.IModuleInventory;
 import net.geforcemods.securitycraft.blockentities.SonicSecuritySystemBlockEntity;
 import net.geforcemods.securitycraft.network.client.OpenScreen;
@@ -10,10 +12,11 @@ import net.geforcemods.securitycraft.network.client.OpenScreen.DataType;
 import net.geforcemods.securitycraft.util.LevelUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.ItemInteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
@@ -41,9 +44,9 @@ import net.minecraft.world.phys.shapes.BooleanOp;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraftforge.network.PacketDistributor;
 
-public class SonicSecuritySystemBlock extends OwnableBlock implements SimpleWaterloggedBlock {
+public class SonicSecuritySystemBlock extends DisguisableBlock implements SimpleWaterloggedBlock {
 	//@formatter:off
 	private static final VoxelShape SHAPE = Stream.of(
 			Block.box(5.5, 11, 5.5, 10.5, 16, 10.5),
@@ -62,10 +65,6 @@ public class SonicSecuritySystemBlock extends OwnableBlock implements SimpleWate
 		registerDefaultState(stateDefinition.any().setValue(POWERED, false).setValue(WATERLOGGED, false));
 	}
 
-	public static boolean isNormalCube(BlockState state, BlockGetter level, BlockPos pos) {
-		return false;
-	}
-
 	@Override
 	public BlockState updateShape(BlockState state, Direction facing, BlockState facingState, LevelAccessor level, BlockPos currentPos, BlockPos facingPos) {
 		if (state.getValue(WATERLOGGED))
@@ -80,12 +79,12 @@ public class SonicSecuritySystemBlock extends OwnableBlock implements SimpleWate
 	}
 
 	@Override
-	public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
+	public void playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
 		//prevents dropping twice the amount of modules when breaking the block in creative mode
 		if (player.isCreative() && level.getBlockEntity(pos) instanceof IModuleInventory inv)
 			inv.getInventory().clear();
 
-		return super.playerWillDestroy(level, pos, state, player);
+		super.playerWillDestroy(level, pos, state, player);
 	}
 
 	@Override
@@ -97,21 +96,17 @@ public class SonicSecuritySystemBlock extends OwnableBlock implements SimpleWate
 	}
 
 	@Override
-	public ItemInteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
-		if (stack.getItem() == SCContent.PORTABLE_TUNE_PLAYER.get())
-			return ItemInteractionResult.SKIP_DEFAULT_BLOCK_INTERACTION;
+	public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
+		if (player.getItemInHand(hand).getItem() != SCContent.PORTABLE_TUNE_PLAYER.get()) {
+			SonicSecuritySystemBlockEntity be = (SonicSecuritySystemBlockEntity) level.getBlockEntity(pos);
 
-		return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
-	}
+			if (!level.isClientSide && (be.isOwnedBy(player) || be.isAllowed(player)))
+				SecurityCraft.CHANNEL.send(PacketDistributor.PLAYER.with(() -> (ServerPlayer) player), new OpenScreen(DataType.SONIC_SECURITY_SYSTEM, pos));
 
-	@Override
-	public InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
-		SonicSecuritySystemBlockEntity be = (SonicSecuritySystemBlockEntity) level.getBlockEntity(pos);
-
-		if (!level.isClientSide && (be.isOwnedBy(player) || be.isAllowed(player)))
-			PacketDistributor.sendToPlayer((ServerPlayer) player, new OpenScreen(DataType.SONIC_SECURITY_SYSTEM, pos));
-
-		return InteractionResult.SUCCESS;
+			return InteractionResult.SUCCESS;
+		}
+		else
+			return InteractionResult.PASS;
 	}
 
 	@Override
@@ -141,7 +136,12 @@ public class SonicSecuritySystemBlock extends OwnableBlock implements SimpleWate
 
 	@Override
 	public VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
-		return SHAPE;
+		BlockState disguisedState = IDisguisable.getDisguisedStateOrDefault(state, level, pos);
+
+		if (disguisedState.getBlock() != this)
+			return disguisedState.getShape(level, pos, context);
+		else
+			return SHAPE;
 	}
 
 	@Override
@@ -155,11 +155,16 @@ public class SonicSecuritySystemBlock extends OwnableBlock implements SimpleWate
 	}
 
 	@Override
-	public ItemStack getCloneItemStack(BlockState state, HitResult target, LevelReader level, BlockPos pos, Player player) {
-		if (level.getBlockEntity(pos) instanceof SonicSecuritySystemBlockEntity be)
-			return be.getItem();
+	public ItemStack getCloneItemStack(BlockState state, HitResult target, BlockGetter level, BlockPos pos, Player player) {
+		CompoundTag blockTag = level.getBlockEntity(pos).getUpdateTag();
+		ItemStack stack = new ItemStack(SCContent.SONIC_SECURITY_SYSTEM_ITEM.get());
 
-		return super.getCloneItemStack(state, target, level, pos, player);
+		if (!blockTag.contains("LinkedBlocks"))
+			return stack;
+
+		stack.setTag(new CompoundTag());
+		stack.getTag().put("LinkedBlocks", blockTag.getList("LinkedBlocks", Tag.TAG_COMPOUND));
+		return stack;
 	}
 
 	@Override

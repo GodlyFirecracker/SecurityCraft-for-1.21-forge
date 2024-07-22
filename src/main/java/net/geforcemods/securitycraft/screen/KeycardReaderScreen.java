@@ -4,10 +4,8 @@ import java.util.Arrays;
 
 import org.apache.commons.lang3.StringUtils;
 
-import net.geforcemods.securitycraft.SCContent;
 import net.geforcemods.securitycraft.SecurityCraft;
 import net.geforcemods.securitycraft.blockentities.KeycardReaderBlockEntity;
-import net.geforcemods.securitycraft.components.KeycardData;
 import net.geforcemods.securitycraft.inventory.KeycardReaderMenu;
 import net.geforcemods.securitycraft.items.KeycardItem;
 import net.geforcemods.securitycraft.misc.ModuleType;
@@ -30,19 +28,17 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 public class KeycardReaderScreen extends AbstractContainerScreen<KeycardReaderMenu> {
-	private static final ResourceLocation TEXTURE = SecurityCraft.resLoc("textures/gui/container/keycard_reader.png");
-	private static final ResourceLocation CONFIRM_SPRITE = SecurityCraft.mcResLoc("container/beacon/confirm");
-	private static final ResourceLocation CANCEL_SPRITE = SecurityCraft.mcResLoc("container/beacon/cancel");
-	private static final ResourceLocation RANDOM_SPRITE = SecurityCraft.resLoc("widget/random");
-	private static final ResourceLocation RANDOM_INACTIVE_SPRITE = SecurityCraft.resLoc("widget/random_inactive");
-	private static final ResourceLocation RESET_SPRITE = SecurityCraft.resLoc("widget/reset");
-	private static final ResourceLocation RESET_INACTIVE_SPRITE = SecurityCraft.resLoc("widget/reset_inactive");
-	private static final ResourceLocation RETURN_SPRITE = SecurityCraft.resLoc("widget/return");
-	private static final ResourceLocation RETURN_INACTIVE_SPRITE = SecurityCraft.resLoc("widget/return_inactive");
-	private static final ResourceLocation WARNING_HIGHLIGHTED_SPRITE = SecurityCraft.mcResLoc("world_list/warning_highlighted");
+	private static final ResourceLocation TEXTURE = new ResourceLocation(SecurityCraft.MODID, "textures/gui/container/keycard_reader.png");
+	private static final ResourceLocation BEACON_GUI = new ResourceLocation("textures/gui/container/beacon.png");
+	private static final ResourceLocation RANDOM_TEXTURE = new ResourceLocation(SecurityCraft.MODID, "textures/gui/random.png");
+	private static final ResourceLocation RANDOM_INACTIVE_TEXTURE = new ResourceLocation(SecurityCraft.MODID, "textures/gui/random_inactive.png");
+	private static final ResourceLocation RESET_TEXTURE = new ResourceLocation(SecurityCraft.MODID, "textures/gui/reset.png");
+	private static final ResourceLocation RESET_INACTIVE_TEXTURE = new ResourceLocation(SecurityCraft.MODID, "textures/gui/reset_inactive.png");
+	private static final ResourceLocation RETURN_TEXTURE = new ResourceLocation(SecurityCraft.MODID, "textures/gui/return.png");
+	private static final ResourceLocation RETURN_INACTIVE_TEXTURE = new ResourceLocation(SecurityCraft.MODID, "textures/gui/return_inactive.png");
+	private static final ResourceLocation WORLD_SELECTION_ICONS = new ResourceLocation("textures/gui/world_selection.png");
 	private static final Component EQUALS = Component.literal("=");
 	private static final Component GREATER_THAN_EQUALS = Component.literal(">=");
 	private static final int MAX_SIGNATURE = 99999;
@@ -101,7 +97,7 @@ public class KeycardReaderScreen extends AbstractContainerScreen<KeycardReaderMe
 		for (int i = 0; i < 5; i++) {
 			final int thisButtonId = i;
 			//@formatter:off
-			toggleButtons[i] = addRenderableWidget(new TogglePictureButton(leftPos + 100, topPos + 50 + (i + 1) * 17, 15, 15, 0, 15, 15, 2, thisButton -> {
+			toggleButtons[i] = addRenderableWidget(new TogglePictureButton(leftPos + 100, topPos + 50 + (i + 1) * 17, 15, 15, BEACON_GUI, new int[]{110, 88}, new int[]{219, 219}, -1, 17, 17, 21, 22, 256, 256, 2, thisButton -> {
 				//@formatter:on
 				//TogglePictureButton already implicitly handles changing the button state in the case of isSmart, so only the data needs to be updated
 				if (!hasSmartModule) {
@@ -119,7 +115,7 @@ public class KeycardReaderScreen extends AbstractContainerScreen<KeycardReaderMe
 				}
 				else
 					acceptedLevels[thisButtonId] = !acceptedLevels[thisButtonId];
-			}, CANCEL_SPRITE, CONFIRM_SPRITE));
+			}));
 			toggleButtons[i].setCurrentIndex(acceptedLevels[i] ? 1 : 0); //set correct button state
 			toggleButtons[i].active = isOwner;
 
@@ -134,11 +130,11 @@ public class KeycardReaderScreen extends AbstractContainerScreen<KeycardReaderMe
 		minusThree = addRenderableWidget(new Button(leftPos + 22, buttonY, 24, buttonHeight, Component.literal("---"), b -> changeSignature(signature - 100), Button.DEFAULT_NARRATION));
 		minusTwo = addRenderableWidget(new Button(leftPos + 48, buttonY, 18, buttonHeight, Component.literal("--"), b -> changeSignature(signature - 10), Button.DEFAULT_NARRATION));
 		minusOne = addRenderableWidget(new Button(leftPos + 68, buttonY, 12, buttonHeight, Component.literal("-"), b -> changeSignature(signature - 1), Button.DEFAULT_NARRATION));
-		reset = addRenderableWidget(new ActiveBasedTextureButton(leftPos + 82, buttonY, 12, buttonHeight, RESET_SPRITE, RESET_INACTIVE_SPRITE, 1, 2, 10, 10, b -> changeSignature(previousSignature)));
+		reset = addRenderableWidget(new ActiveBasedTextureButton(leftPos + 82, buttonY, 12, buttonHeight, RESET_TEXTURE, RESET_INACTIVE_TEXTURE, 10, 10, 1, 2, 10, 10, 10, 10, b -> changeSignature(previousSignature)));
 		plusOne = addRenderableWidget(new Button(leftPos + 96, buttonY, 12, buttonHeight, Component.literal("+"), b -> changeSignature(signature + 1), Button.DEFAULT_NARRATION));
 		plusTwo = addRenderableWidget(new Button(leftPos + 110, buttonY, 18, buttonHeight, Component.literal("++"), b -> changeSignature(signature + 10), Button.DEFAULT_NARRATION));
 		plusThree = addRenderableWidget(new Button(leftPos + 130, buttonY, 24, buttonHeight, Component.literal("+++"), b -> changeSignature(signature + 100), Button.DEFAULT_NARRATION));
-		randomizeButton = addRenderableWidget(new ActiveBasedTextureButton(leftPos + 156, buttonY, 12, buttonHeight, RANDOM_SPRITE, RANDOM_INACTIVE_SPRITE, 1, 2, 10, 10, b -> changeSignature(SecurityCraft.RANDOM.nextInt(MAX_SIGNATURE))));
+		randomizeButton = addRenderableWidget(new ActiveBasedTextureButton(leftPos + 156, buttonY, 12, buttonHeight, RANDOM_TEXTURE, RANDOM_INACTIVE_TEXTURE, 10, 10, 1, 2, 10, 10, 10, 10, b -> changeSignature(minecraft.level.random.nextInt(MAX_SIGNATURE))));
 		randomizeButton.setTooltip(Tooltip.create(Utils.localize("gui.securitycraft:keycard_reader.randomize_signature")));
 		randomizeButton.active = isOwner;
 		//set correct signature
@@ -147,14 +143,14 @@ public class KeycardReaderScreen extends AbstractContainerScreen<KeycardReaderMe
 		linkButton = addRenderableWidget(new Button(leftPos + 8, topPos + 126, 70, 20, linkText, b -> {
 			previousSignature = signature;
 			changeSignature(signature);
-			PacketDistributor.sendToServer(new SyncKeycardSettings(be.getBlockPos(), acceptedLevels, signature, true));
+			SecurityCraft.CHANNEL.sendToServer(new SyncKeycardSettings(be.getBlockPos(), acceptedLevels, signature, true));
 
 			if (menu.keycardSlot.getItem().getHoverName().getString().equalsIgnoreCase("Zelda"))
 				minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SCSounds.GET_ITEM.event, 1.0F, 1.25F));
 		}, Button.DEFAULT_NARRATION));
 		linkButton.active = false;
 		//button for saving the amount of limited uses onto the keycard
-		setUsesButton = addRenderableWidget(new ActiveBasedTextureButton(leftPos + 62, topPos + 106, 16, 17, RETURN_SPRITE, RETURN_INACTIVE_SPRITE, 2, 2, 14, 14, b -> PacketDistributor.sendToServer(new SetKeycardUses(be.getBlockPos(), Integer.parseInt(usesTextField.getValue())))));
+		setUsesButton = addRenderableWidget(new ActiveBasedTextureButton(leftPos + 62, topPos + 106, 16, 17, RETURN_TEXTURE, RETURN_INACTIVE_TEXTURE, 14, 14, 2, 2, 14, 14, 14, 14, b -> SecurityCraft.CHANNEL.sendToServer(new SetKeycardUses(be.getBlockPos(), Integer.parseInt(usesTextField.getValue())))));
 		setUsesButton.active = false;
 		//text field for setting amount of limited uses
 		usesTextField = addRenderableWidget(new EditBox(font, leftPos + 28, topPos + 107, 30, 15, Component.empty()));
@@ -224,17 +220,16 @@ public class KeycardReaderScreen extends AbstractContainerScreen<KeycardReaderMe
 		ItemStack stack = menu.keycardSlot.getItem();
 		boolean isEmpty = stack.isEmpty();
 		boolean wasActive = usesTextField.active;
-		KeycardData keycardData = stack.get(SCContent.KEYCARD_DATA);
-		boolean hasData = keycardData != null;
-		boolean enabled = !isEmpty && hasData && keycardData.limited();
-		int cardSignature = hasData ? keycardData.signature() : -1;
+		boolean hasTag = stack.hasTag();
+		boolean enabled = !isEmpty && hasTag && stack.getTag().getBoolean("limited");
+		int cardSignature = stack.hasTag() ? stack.getTag().getInt("signature") : -1;
 
 		usesTextField.setEditable(enabled);
 		usesTextField.active = enabled;
 
 		//set the text of the text field to the amount of uses on the keycard
 		if (!wasActive && enabled)
-			usesTextField.setValue("" + keycardData.usesLeft());
+			usesTextField.setValue("" + stack.getTag().getInt("uses"));
 		else if (wasActive && !enabled)
 			usesTextField.setValue("");
 
@@ -246,7 +241,7 @@ public class KeycardReaderScreen extends AbstractContainerScreen<KeycardReaderMe
 		}
 		else {
 			//set return button depending on whether a different amount of uses compared to the keycard in the slot can be set
-			setUsesButton.active = enabled && usesTextField.getValue() != null && !usesTextField.getValue().isEmpty() && !("" + keycardData.usesLeft()).equals(usesTextField.getValue());
+			setUsesButton.active = enabled && usesTextField.getValue() != null && !usesTextField.getValue().isEmpty() && !("" + stack.getTag().getInt("uses")).equals(usesTextField.getValue());
 			linkButton.active = !isEmpty && cardSignature != signature;
 		}
 	}
@@ -259,10 +254,10 @@ public class KeycardReaderScreen extends AbstractContainerScreen<KeycardReaderMe
 
 		//if the level of the keycard currently in the slot is not enabled in the keycard reader, show a warning
 		if (!stack.isEmpty() && !acceptedLevels[((KeycardItem) stack.getItem()).getLevel()]) {
-			int left = leftPos + 34;
-			int top = topPos + 55;
+			int left = leftPos + 40;
+			int top = topPos + 60;
 
-			guiGraphics.blitSprite(WARNING_HIGHLIGHTED_SPRITE, left, top, 32, 32);
+			guiGraphics.blit(WORLD_SELECTION_ICONS, left, top, 22, 22, 70, 37, 22, 22, 256, 256);
 
 			if (mouseX >= left - 7 && mouseX < left + 13 && mouseY >= top && mouseY <= top + 22)
 				guiGraphics.renderComponentTooltip(font, Arrays.asList(levelMismatchInfo), mouseX, mouseY);
@@ -277,15 +272,16 @@ public class KeycardReaderScreen extends AbstractContainerScreen<KeycardReaderMe
 
 	@Override
 	protected void renderBg(GuiGraphics guiGraphics, float partialTicks, int mouseX, int mouseY) {
+		renderBackground(guiGraphics);
 		guiGraphics.blit(TEXTURE, leftPos, topPos, 0, 0, imageWidth, imageHeight);
 	}
 
 	@Override
-	public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+	public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
 		if (isOwner && mouseX >= leftPos + signatureTextStartX && mouseY >= topPos + 23 && mouseX <= leftPos + signatureTextStartX + signatureTextLength && mouseY <= topPos + 43)
-			changeSignature(signature + (int) Math.signum(scrollY));
+			changeSignature(signature + (int) Math.signum(delta));
 
-		return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+		return super.mouseScrolled(mouseX, mouseY, delta);
 	}
 
 	@Override
@@ -296,7 +292,7 @@ public class KeycardReaderScreen extends AbstractContainerScreen<KeycardReaderMe
 			//write new data to client te and send that data to the server, which verifies and updates it on its side
 			be.setAcceptedLevels(acceptedLevels);
 			be.setSignature(signature);
-			PacketDistributor.sendToServer(new SyncKeycardSettings(be.getBlockPos(), acceptedLevels, signature, false));
+			SecurityCraft.CHANNEL.sendToServer(new SyncKeycardSettings(be.getBlockPos(), acceptedLevels, signature, false));
 		}
 	}
 

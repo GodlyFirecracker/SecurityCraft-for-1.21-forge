@@ -1,6 +1,7 @@
 package net.geforcemods.securitycraft.items;
 
 import net.geforcemods.securitycraft.SCContent;
+import net.geforcemods.securitycraft.api.IDisguisable;
 import net.geforcemods.securitycraft.api.ILinkedAction;
 import net.geforcemods.securitycraft.api.IModuleInventory;
 import net.geforcemods.securitycraft.api.IOwnable;
@@ -9,7 +10,6 @@ import net.geforcemods.securitycraft.api.OwnableBlockEntity;
 import net.geforcemods.securitycraft.blockentities.DisplayCaseBlockEntity;
 import net.geforcemods.securitycraft.blockentities.InventoryScannerBlockEntity;
 import net.geforcemods.securitycraft.blocks.CageTrapBlock;
-import net.geforcemods.securitycraft.blocks.DisguisableBlock;
 import net.geforcemods.securitycraft.blocks.InventoryScannerBlock;
 import net.geforcemods.securitycraft.blocks.LaserBlock;
 import net.geforcemods.securitycraft.blocks.OwnableBlock;
@@ -21,7 +21,6 @@ import net.geforcemods.securitycraft.util.Utils;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
@@ -53,7 +52,7 @@ public class UniversalBlockRemoverItem extends Item {
 				return InteractionResult.PASS;
 
 			if (!((IOwnable) be).isOwnedBy(player)) {
-				if (!(block instanceof IBlockMine) && (!(be.getBlockState().getBlock() instanceof DisguisableBlock db) || (((BlockItem) db.getDisguisedStack(level, pos).getItem()).getBlock() instanceof DisguisableBlock)))
+				if (!(block instanceof IBlockMine) && (!(be.getBlockState().getBlock() instanceof IDisguisable db) || (((BlockItem) db.getDisguisedStack(level, pos).getItem()).getBlock() instanceof IDisguisable)))
 					PlayerUtils.sendMessageToPlayer(player, Utils.localize(SCContent.UNIVERSAL_BLOCK_REMOVER.get().getDescriptionId()), Utils.localize("messages.securitycraft:notOwned", PlayerUtils.getOwnerComponent(((IOwnable) be).getOwner())), ChatFormatting.RED);
 
 				return InteractionResult.FAIL;
@@ -73,7 +72,7 @@ public class UniversalBlockRemoverItem extends Item {
 				if (!level.isClientSide) {
 					level.destroyBlock(pos, true);
 					LaserBlock.destroyAdjacentLasers(level, pos);
-					stack.hurtAndBreak(1, player, LivingEntity.getSlotForHand(ctx.getHand()));
+					stack.hurtAndBreak(1, player, p -> p.broadcastBreakEvent(ctx.getHand()));
 				}
 			}
 			else if (block == SCContent.CAGE_TRAP.get() && state.getValue(CageTrapBlock.DEACTIVATED)) {
@@ -93,7 +92,7 @@ public class UniversalBlockRemoverItem extends Item {
 					});
 
 					level.destroyBlock(originalPos, true);
-					stack.hurtAndBreak(1, player, LivingEntity.getSlotForHand(ctx.getHand()));
+					stack.hurtAndBreak(1, player, p -> p.broadcastBreakEvent(ctx.getHand()));
 				}
 			}
 			else {
@@ -110,7 +109,7 @@ public class UniversalBlockRemoverItem extends Item {
 				if (!level.isClientSide) {
 					level.destroyBlock(pos, true); //this also removes the BlockEntity
 					block.destroy(level, pos, state);
-					stack.hurtAndBreak(1, player, LivingEntity.getSlotForHand(ctx.getHand()));
+					stack.hurtAndBreak(1, player, p -> p.broadcastBreakEvent(ctx.getHand()));
 				}
 			}
 

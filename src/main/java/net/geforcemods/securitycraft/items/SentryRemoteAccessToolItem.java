@@ -1,11 +1,9 @@
 package net.geforcemods.securitycraft.items;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 import net.geforcemods.securitycraft.SCContent;
-import net.geforcemods.securitycraft.components.SentryPositions;
+import net.geforcemods.securitycraft.SecurityCraft;
 import net.geforcemods.securitycraft.entity.sentry.Sentry;
 import net.geforcemods.securitycraft.network.client.OpenScreen;
 import net.geforcemods.securitycraft.network.client.OpenScreen.DataType;
@@ -14,7 +12,7 @@ import net.geforcemods.securitycraft.util.Utils;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.GlobalPos;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
@@ -27,7 +25,7 @@ import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraftforge.network.PacketDistributor;
 
 public class SentryRemoteAccessToolItem extends Item {
 	public SentryRemoteAccessToolItem(Item.Properties properties) {
@@ -40,7 +38,7 @@ public class SentryRemoteAccessToolItem extends Item {
 
 		if (!level.isClientSide) {
 			updateTagWithNames(stack, level);
-			PacketDistributor.sendToPlayer((ServerPlayer) player, new OpenScreen(DataType.SENTRY_REMOTE_ACCESS_TOOL));
+			SecurityCraft.CHANNEL.send(PacketDistributor.PLAYER.with(() -> (ServerPlayer) player), new OpenScreen(DataType.SENTRY_REMOTE_ACCESS_TOOL, stack.getTag()));
 		}
 
 		return InteractionResultHolder.consume(stack);
@@ -58,105 +56,156 @@ public class SentryRemoteAccessToolItem extends Item {
 			Sentry sentry = sentries.get(0);
 			BlockPos sentryPos = sentry.blockPosition();
 
-			if (!sentry.isOwnedBy(player)) {
-				PlayerUtils.sendMessageToPlayer(player, Utils.localize(SCContent.SENTRY_REMOTE_ACCESS_TOOL.get().getDescriptionId()), Utils.localize("messages.securitycraft:srat.cantBind"), ChatFormatting.RED);
-				return InteractionResult.FAIL;
-			}
+			if (!isSentryAdded(stack, sentryPos)) {
+				int nextAvailableSlot = getNextAvailableSlot(stack);
 
-			SentryPositions positions = stack.get(SCContent.BOUND_SENTRIES);
-
-			if (positions != null) {
-				GlobalPos globalPos = new GlobalPos(level.dimension(), pos);
-
-				if (positions.remove(SCContent.BOUND_SENTRIES, stack, globalPos))
-					PlayerUtils.sendMessageToPlayer(player, Utils.localize(SCContent.SENTRY_REMOTE_ACCESS_TOOL.get().getDescriptionId()), Utils.localize("messages.securitycraft:srat.unbound", sentryPos), ChatFormatting.RED);
-				else if (positions.add(SCContent.BOUND_SENTRIES, stack, globalPos, sentry.hasCustomName() ? Optional.of(sentry.getCustomName().getString()) : Optional.empty()))
-					PlayerUtils.sendMessageToPlayer(player, Utils.localize(SCContent.SENTRY_REMOTE_ACCESS_TOOL.get().getDescriptionId()), Utils.localize("messages.securitycraft:srat.bound", sentryPos), ChatFormatting.GREEN);
-				else {
+				if (nextAvailableSlot == 0) {
 					PlayerUtils.sendMessageToPlayer(player, Utils.localize(SCContent.SENTRY_REMOTE_ACCESS_TOOL.get().getDescriptionId()), Utils.localize("messages.securitycraft:srat.noSlots"), ChatFormatting.RED);
 					return InteractionResult.FAIL;
 				}
 
-				return InteractionResult.SUCCESS;
+				if (!sentry.isOwnedBy(player)) {
+					PlayerUtils.sendMessageToPlayer(player, Utils.localize(SCContent.SENTRY_REMOTE_ACCESS_TOOL.get().getDescriptionId()), Utils.localize("messages.securitycraft:srat.cantBind"), ChatFormatting.RED);
+					return InteractionResult.FAIL;
+				}
+
+				stack.getOrCreateTag().putIntArray("sentry" + nextAvailableSlot, new int[] {
+						sentryPos.getX(), sentryPos.getY(), sentryPos.getZ()
+				});
+
+				if (sentry.hasCustomName())
+					stack.getTag().putString("sentry" + nextAvailableSlot + "_name", sentry.getCustomName().getString());
+
+				PlayerUtils.sendMessageToPlayer(player, Utils.localize(SCContent.SENTRY_REMOTE_ACCESS_TOOL.get().getDescriptionId()), Utils.localize("messages.securitycraft:srat.bound", sentryPos), ChatFormatting.GREEN);
 			}
+			else {
+				removeSentry(stack, sentryPos);
+				PlayerUtils.sendMessageToPlayer(player, Utils.localize(SCContent.SENTRY_REMOTE_ACCESS_TOOL.get().getDescriptionId()), Utils.localize("messages.securitycraft:srat.unbound", sentryPos), ChatFormatting.RED);
+			}
+
+			return InteractionResult.SUCCESS;
 		}
 		else if (!level.isClientSide) {
 			updateTagWithNames(stack, level);
-			PacketDistributor.sendToPlayer((ServerPlayer) player, new OpenScreen(DataType.SENTRY_REMOTE_ACCESS_TOOL));
+			SecurityCraft.CHANNEL.send(PacketDistributor.PLAYER.with(() -> (ServerPlayer) player), new OpenScreen(DataType.SENTRY_REMOTE_ACCESS_TOOL, stack.getTag()));
 		}
 
 		return InteractionResult.SUCCESS;
 	}
 
 	@Override
-	public void appendHoverText(ItemStack stack, TooltipContext ctx, List<Component> tooltip, TooltipFlag flag) {
-		SentryPositions positions = stack.get(SCContent.BOUND_SENTRIES);
+	public void appendHoverText(ItemStack stack, Level level, List<Component> tooltip, TooltipFlag flag) {
+		if (stack.getTag() == null)
+			return;
 
-		if (positions != null && !positions.isEmpty()) {
-			List<SentryPositions.Entry> entries = positions.positions();
+		for (int i = 1; i <= 12; i++) {
+			int[] coords = stack.getTag().getIntArray("sentry" + i);
 
-			for (int i = 0; i < SentryPositions.MAX_SENTRIES; i++) {
-				SentryPositions.Entry entry = entries.get(i);
+			if (coords.length != 3)
+				tooltip.add(Component.literal(ChatFormatting.GRAY + "---"));
+			else {
+				BlockPos pos = new BlockPos(coords[0], coords[1], coords[2]);
+				String nameKey = "sentry" + i + "_name";
+				String nameToShow = null;
 
-				if (entry == null)
-					tooltip.add(Component.literal(ChatFormatting.GRAY + "---"));
+				if (stack.getTag().contains(nameKey))
+					nameToShow = stack.getTag().getString(nameKey);
 				else {
-					BlockPos pos = entry.globalPos().pos();
-					String nameToShow = null;
+					List<Sentry> sentries = Minecraft.getInstance().player.level().getEntitiesOfClass(Sentry.class, new AABB(pos));
 
-					if (entry.name().isPresent())
-						nameToShow = entry.name().get();
-					else {
-						List<Sentry> sentries = Minecraft.getInstance().player.level().getEntitiesOfClass(Sentry.class, new AABB(pos));
-
-						if (!sentries.isEmpty() && sentries.get(0).hasCustomName())
-							nameToShow = sentries.get(0).getCustomName().getString();
-						else
-							nameToShow = Utils.localize("tooltip.securitycraft:sentry", i).getString();
-					}
-
-					tooltip.add(Component.literal(ChatFormatting.GRAY + nameToShow + ": " + Utils.getFormattedCoordinates(pos).getString()));
+					if (!sentries.isEmpty() && sentries.get(0).hasCustomName())
+						nameToShow = sentries.get(0).getCustomName().getString();
+					else
+						nameToShow = Utils.localize("tooltip.securitycraft:sentry", i).getString();
 				}
+
+				tooltip.add(Component.literal(ChatFormatting.GRAY + nameToShow + ": " + Utils.getFormattedCoordinates(pos).getString()));
 			}
 		}
 	}
 
 	private void updateTagWithNames(ItemStack stack, Level level) {
-		SentryPositions positions = stack.get(SCContent.BOUND_SENTRIES);
+		if (!stack.hasTag())
+			return;
 
-		if (positions != null && !positions.isEmpty()) {
-			List<SentryPositions.Entry> newEntries = new ArrayList<>(positions.positions());
-			boolean changed = false;
+		CompoundTag tag = stack.getTag();
 
-			for (int i = 0; i < newEntries.size(); i++) {
-				SentryPositions.Entry entry = newEntries.get(i);
+		for (int i = 1; i <= 12; i++) {
+			int[] coords = tag.getIntArray("sentry" + i);
+			String nameKey = "sentry" + i + "_name";
 
-				if (entry != null) {
-					GlobalPos globalPos = entry.globalPos();
+			if (coords.length == 3) {
+				BlockPos sentryPos = new BlockPos(coords[0], coords[1], coords[2]);
 
-					if (level.dimension().equals(globalPos.dimension()) && level.isLoaded(globalPos.pos())) {
-						List<Sentry> sentries = level.getEntitiesOfClass(Sentry.class, new AABB(globalPos.pos()));
+				if (level.isLoaded(sentryPos)) {
+					List<Sentry> sentries = level.getEntitiesOfClass(Sentry.class, new AABB(sentryPos));
 
-						if (!sentries.isEmpty()) {
-							Sentry sentry = sentries.get(0);
+					if (!sentries.isEmpty()) {
+						Sentry sentry = sentries.get(0);
 
-							if (sentry.hasCustomName()) {
-								newEntries.set(i, new SentryPositions.Entry(globalPos, Optional.of(sentry.getCustomName().getString())));
-								changed = true;
-								continue;
-							}
+						if (sentry.hasCustomName()) {
+							tag.putString(nameKey, sentry.getCustomName().getString());
+							continue;
 						}
 					}
-					else
-						continue;
-
-					newEntries.set(i, new SentryPositions.Entry(globalPos, Optional.empty()));
-					changed = true;
 				}
+				else
+					continue;
 			}
 
-			if (changed)
-				stack.set(SCContent.BOUND_SENTRIES, new SentryPositions(newEntries));
+			tag.remove(nameKey);
 		}
+	}
+
+	private void removeSentry(ItemStack stack, BlockPos pos) {
+		if (stack.getTag() == null)
+			return;
+
+		for (int i = 1; i <= 12; i++) {
+			int[] coords = stack.getTag().getIntArray("sentry" + i);
+
+			if (coords.length == 3 && coords[0] == pos.getX() && coords[1] == pos.getY() && coords[2] == pos.getZ()) {
+				stack.getTag().remove("sentry" + i);
+				return;
+			}
+		}
+	}
+
+	public static boolean hasSentryAdded(CompoundTag tag) {
+		if (tag == null)
+			return false;
+
+		for (int i = 1; i <= 12; i++) {
+			if (tag.contains("sentry" + i))
+				return true;
+		}
+
+		return false;
+	}
+
+	public static boolean isSentryAdded(ItemStack stack, BlockPos pos) {
+		if (stack.getTag() == null)
+			return false;
+
+		for (int i = 1; i <= 12; i++) {
+			int[] coords = stack.getTag().getIntArray("sentry" + i);
+
+			if (coords.length == 3 && coords[0] == pos.getX() && coords[1] == pos.getY() && coords[2] == pos.getZ())
+				return true;
+		}
+
+		return false;
+	}
+
+	public static int getNextAvailableSlot(ItemStack stack) {
+		if (stack.getTag() == null)
+			return 1;
+
+		for (int i = 1; i <= 12; i++) {
+			if (stack.getTag().getIntArray("sentry" + i).length != 3)
+				return i;
+		}
+
+		return 0;
 	}
 }

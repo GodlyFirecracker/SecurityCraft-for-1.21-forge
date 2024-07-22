@@ -17,7 +17,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 
 public class SecureRedstoneInterfaceRenderer implements BlockEntityRenderer<SecureRedstoneInterfaceBlockEntity> {
-	private static final ResourceLocation TEXTURE = SecurityCraft.resLoc("textures/block/secure_redstone_interface_dish.png");
+	private static final ResourceLocation TEXTURE = new ResourceLocation(SecurityCraft.MODID, "textures/block/secure_redstone_interface_dish.png");
 	private final SecureRedstoneInterfaceDishModel model;
 
 	public SecureRedstoneInterfaceRenderer(BlockEntityRendererProvider.Context ctx) {
@@ -33,7 +33,7 @@ public class SecureRedstoneInterfaceRenderer implements BlockEntityRenderer<Secu
 			pose.mulPose(be.getBlockState().getValue(SecureRedstoneInterfaceBlock.FACING).getRotation());
 			pose.translate(0.0D, -0.49999D, 0.0D);
 			model.rotate(Mth.lerp(partialTicks, be.getOriginalDishRotationDegrees(), be.getDishRotationDegrees()));
-			model.renderToBuffer(pose, buffer.getBuffer(RenderType.entitySolid(TEXTURE)), combinedLight, OverlayTexture.NO_OVERLAY, 0xFFFFFFFF);
+			model.renderToBuffer(pose, buffer.getBuffer(RenderType.entitySolid(TEXTURE)), combinedLight, OverlayTexture.NO_OVERLAY, 1.0F, 1.0F, 1.0F, 1.0F);
 		}
 	}
 }

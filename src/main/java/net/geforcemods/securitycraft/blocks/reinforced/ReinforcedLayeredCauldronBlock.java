@@ -1,18 +1,21 @@
 package net.geforcemods.securitycraft.blocks.reinforced;
 
+import java.util.Map;
+import java.util.function.Predicate;
+
 import net.geforcemods.securitycraft.SCContent;
 import net.geforcemods.securitycraft.api.IReinforcedBlock;
 import net.geforcemods.securitycraft.blockentities.ReinforcedCauldronBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.cauldron.CauldronInteraction;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.ItemInteractionResult;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.biome.Biome.Precipitation;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
@@ -31,8 +34,8 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 public class ReinforcedLayeredCauldronBlock extends LayeredCauldronBlock implements IReinforcedBlock, EntityBlock {
 	private final Block vanillaBlock;
 
-	public ReinforcedLayeredCauldronBlock(Precipitation precipitation, CauldronInteraction.InteractionMap interactions, BlockBehaviour.Properties properties, Block vanillaBlock) {
-		super(precipitation, interactions, properties);
+	public ReinforcedLayeredCauldronBlock(BlockBehaviour.Properties properties, Predicate<Precipitation> fillPredicate, Map<Item, CauldronInteraction> interactions, Block vanillaBlock) {
+		super(properties, fillPredicate, interactions);
 		this.vanillaBlock = vanillaBlock;
 	}
 
@@ -53,11 +56,11 @@ public class ReinforcedLayeredCauldronBlock extends LayeredCauldronBlock impleme
 	}
 
 	@Override
-	public ItemInteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
+	public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
 		if (level.getBlockEntity(pos) instanceof ReinforcedCauldronBlockEntity be && be.isAllowedToInteract(player))
-			return super.useItemOn(stack, state, level, pos, player, hand, hit);
+			return super.use(state, level, pos, player, hand, hit);
 
-		return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
+		return InteractionResult.PASS;
 	}
 
 	public static void lowerFillLevel(BlockState state, Level level, BlockPos pos) {
@@ -69,7 +72,7 @@ public class ReinforcedLayeredCauldronBlock extends LayeredCauldronBlock impleme
 	}
 
 	@Override
-	public void handleEntityOnFireInside(BlockState state, Level level, BlockPos pos) {
+	protected void handleEntityOnFireInside(BlockState state, Level level, BlockPos pos) {
 		lowerFillLevel(state, level, pos);
 	}
 
@@ -84,7 +87,7 @@ public class ReinforcedLayeredCauldronBlock extends LayeredCauldronBlock impleme
 	}
 
 	@Override
-	public ItemStack getCloneItemStack(BlockState state, HitResult target, LevelReader level, BlockPos pos, Player player) {
+	public ItemStack getCloneItemStack(BlockState state, HitResult target, BlockGetter level, BlockPos pos, Player player) {
 		return new ItemStack(SCContent.REINFORCED_CAULDRON.get());
 	}
 }

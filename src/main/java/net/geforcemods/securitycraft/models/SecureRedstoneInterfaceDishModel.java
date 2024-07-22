@@ -40,8 +40,8 @@ public class SecureRedstoneInterfaceDishModel extends EntityModel<Entity> {
 	public void setupAnim(Entity entity, float limbSwing, float limbSwingAmount, float ageInTicks, float netHeadYaw, float headPitch) {}
 
 	@Override
-	public void renderToBuffer(PoseStack poseStack, VertexConsumer vertexConsumer, int packedLight, int packedOverlay, int packedARGB) {
-		modelParts.render(poseStack, vertexConsumer, packedLight, packedOverlay, packedARGB);
+	public void renderToBuffer(PoseStack poseStack, VertexConsumer vertexConsumer, int packedLight, int packedOverlay, float red, float green, float blue, float alpha) {
+		modelParts.render(poseStack, vertexConsumer, packedLight, packedOverlay, red, green, blue, alpha);
 	}
 
 	public void rotate(float rotation) {

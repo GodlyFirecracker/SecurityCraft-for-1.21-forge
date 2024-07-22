@@ -5,9 +5,9 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import net.geforcemods.securitycraft.SecurityCraft;
+import net.geforcemods.securitycraft.api.IDisguisable;
 import net.geforcemods.securitycraft.api.IModuleInventory;
 import net.geforcemods.securitycraft.api.IOwnable;
-import net.geforcemods.securitycraft.blocks.DisguisableBlock;
 import net.geforcemods.securitycraft.compat.IOverlayDisplay;
 import net.geforcemods.securitycraft.entity.SecuritySeaBoat;
 import net.geforcemods.securitycraft.entity.sentry.Sentry;
@@ -30,9 +30,9 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
 public class HudModHandler {
-	protected static final ResourceLocation SHOW_OWNER = SecurityCraft.resLoc("showowner");
-	protected static final ResourceLocation SHOW_MODULES = SecurityCraft.resLoc("showmodules");
-	protected static final ResourceLocation SHOW_CUSTOM_NAME = SecurityCraft.resLoc("showcustomname");
+	protected static final ResourceLocation SHOW_OWNER = new ResourceLocation(SecurityCraft.MODID, "showowner");
+	protected static final ResourceLocation SHOW_MODULES = new ResourceLocation(SecurityCraft.MODID, "showmodules");
+	protected static final ResourceLocation SHOW_CUSTOM_NAME = new ResourceLocation(SecurityCraft.MODID, "showcustomname");
 	protected static final Style MOD_NAME_STYLE = Style.EMPTY.applyFormat(ChatFormatting.BLUE).withItalic(true);
 	protected static final Style ITEM_NAME_STYLE = Style.EMPTY.applyFormat(ChatFormatting.WHITE);
 	protected static final MutableComponent EQUIPPED = Utils.localize("waila.securitycraft:equipped").withStyle(ChatFormatting.GRAY);
@@ -45,8 +45,8 @@ public class HudModHandler {
 	public void addDisguisedOwnerModuleNameInfo(Level level, BlockPos pos, BlockState state, Block block, BlockEntity be, Player player, Consumer<Component> lineAdder, Predicate<ResourceLocation> configGetter) {
 		boolean disguised = false;
 
-		if (block instanceof DisguisableBlock) {
-			Optional<BlockState> disguisedBlockState = DisguisableBlock.getDisguisedBlockState(level, pos);
+		if (block instanceof IDisguisable) {
+			Optional<BlockState> disguisedBlockState = IDisguisable.getDisguisedBlockState(level, pos);
 
 			if (disguisedBlockState.isPresent()) {
 				disguised = true;

@@ -18,7 +18,6 @@ import net.minecraft.world.level.BlockAndTintGetter;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Explosion;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockBehaviour;
@@ -61,7 +60,7 @@ public class BaseFullMineBlock extends ExplosiveBlock implements IOverlayDisplay
 	@Override
 	public void wasExploded(Level level, BlockPos pos, Explosion explosion) {
 		if (!level.isClientSide) {
-			if (pos.equals(BlockPos.containing(explosion.center())))
+			if (pos.equals(BlockPos.containing(explosion.getPosition())))
 				return;
 
 			explode(level, pos);
@@ -136,7 +135,7 @@ public class BaseFullMineBlock extends ExplosiveBlock implements IOverlayDisplay
 	}
 
 	@Override
-	public ItemStack getCloneItemStack(BlockState state, HitResult target, LevelReader level, BlockPos pos, Player player) {
+	public ItemStack getCloneItemStack(BlockState state, HitResult target, BlockGetter level, BlockPos pos, Player player) {
 		if (player.isCreative() || (level.getBlockEntity(pos) instanceof OwnableBlockEntity be && be.isOwnedBy(player)))
 			return super.getCloneItemStack(state, target, level, pos, player);
 

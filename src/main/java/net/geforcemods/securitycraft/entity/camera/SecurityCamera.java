@@ -13,9 +13,6 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundAddEntityPacket;
-import net.minecraft.network.syncher.SynchedEntityData;
-import net.minecraft.server.level.ChunkTrackingView;
-import net.minecraft.server.level.ServerEntity;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.MobEffects;
@@ -23,13 +20,14 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraftforge.common.world.ForgeChunkManager;
+import net.minecraftforge.network.PacketDistributor;
 
 public class SecurityCamera extends Entity {
 	private static final List<Player> DISMOUNTED_PLAYERS = new ArrayList<>();
 	protected float zoomAmount = 1F;
 	protected boolean zooming = false;
-	private ChunkTrackingView cameraChunks = null;
+	private int initialChunkLoadingDistance = 0;
 	private boolean hasSentChunks = false;
 	private SecurityCameraBlockEntity be;
 
@@ -71,7 +69,6 @@ public class SecurityCamera extends Entity {
 		if (!level.isClientSide && level.getBlockState(blockPosition()).getBlock() != SCContent.SECURITY_CAMERA.get())
 			discard();
 	}
-
 	public float getZoomAmount() {
 		return zoomAmount;
 	}
@@ -84,12 +81,8 @@ public class SecurityCamera extends Entity {
 		setRot(yaw, pitch);
 	}
 
-	public ChunkTrackingView getCameraChunks() {
-		return cameraChunks;
-	}
-
 	public void setChunkLoadingDistance(int chunkLoadingDistance) {
-		cameraChunks = ChunkTrackingView.of(chunkPosition(), chunkLoadingDistance);
+		initialChunkLoadingDistance = chunkLoadingDistance;
 	}
 
 	public boolean hasSentChunks() {
@@ -114,7 +107,7 @@ public class SecurityCamera extends Entity {
 		if (!level().isClientSide) {
 			discard();
 			player.camera = player;
-			PacketDistributor.sendToPlayer(player, new SetCameraView(player.getId()));
+			SecurityCraft.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new SetCameraView(player));
 			DISMOUNTED_PLAYERS.add(player);
 
 			if (player.getEffect(MobEffects.NIGHT_VISION) instanceof CameraNightVisionEffectInstance)
@@ -132,18 +125,18 @@ public class SecurityCamera extends Entity {
 				be.stopViewing();
 
 			SectionPos chunkPos = SectionPos.of(blockPosition());
-			int chunkLoadingDistance = cameraChunks instanceof ChunkTrackingView.Positioned positionedChunks ? positionedChunks.viewDistance() : level().getServer().getPlayerList().getViewDistance();
+			int chunkLoadingDistance = initialChunkLoadingDistance <= 0 ? level().getServer().getPlayerList().getViewDistance() : initialChunkLoadingDistance;
 
 			for (int x = chunkPos.getX() - chunkLoadingDistance; x <= chunkPos.getX() + chunkLoadingDistance; x++) {
 				for (int z = chunkPos.getZ() - chunkLoadingDistance; z <= chunkPos.getZ() + chunkLoadingDistance; z++) {
-					SecurityCraft.CAMERA_TICKET_CONTROLLER.forceChunk((ServerLevel) level(), this, x, z, false, false);
+					ForgeChunkManager.forceChunk((ServerLevel) level(), SecurityCraft.MODID, this, x, z, false, false);
 				}
 			}
 		}
 	}
 
 	@Override
-	protected void defineSynchedData(SynchedEntityData.Builder builder) {}
+	protected void defineSynchedData() {}
 
 	@Override
 	public void addAdditionalSaveData(CompoundTag tag) {}
@@ -152,8 +145,8 @@ public class SecurityCamera extends Entity {
 	public void readAdditionalSaveData(CompoundTag tag) {}
 
 	@Override
-	public Packet<ClientGamePacketListener> getAddEntityPacket(ServerEntity serverEntity) {
-		return new ClientboundAddEntityPacket(this, serverEntity);
+	public Packet<ClientGamePacketListener> getAddEntityPacket() {
+		return new ClientboundAddEntityPacket(this);
 	}
 
 	@Override

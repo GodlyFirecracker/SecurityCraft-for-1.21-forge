@@ -1,40 +1,45 @@
 package net.geforcemods.securitycraft.network.server;
 
-import net.geforcemods.securitycraft.SecurityCraft;
+import java.util.function.Supplier;
+
 import net.geforcemods.securitycraft.blockentities.RiftStabilizerBlockEntity;
 import net.geforcemods.securitycraft.blockentities.RiftStabilizerBlockEntity.TeleportationType;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.neoforge.network.codec.NeoForgeStreamCodecs;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.network.NetworkEvent.Context;
 
-public record SyncRiftStabilizer(BlockPos pos, TeleportationType teleportationType, boolean allowed) implements CustomPacketPayload {
+public class SyncRiftStabilizer {
+	private BlockPos pos;
+	private TeleportationType teleportationType;
+	private boolean allowed;
 
-	public static final Type<SyncRiftStabilizer> TYPE = new Type<>(SecurityCraft.resLoc("sync_rift_stabilizer"));
-	//@formatter:off
-	public static final StreamCodec<RegistryFriendlyByteBuf, SyncRiftStabilizer> STREAM_CODEC = StreamCodec.composite(
-			BlockPos.STREAM_CODEC, SyncRiftStabilizer::pos,
-			NeoForgeStreamCodecs.enumCodec(TeleportationType.class), SyncRiftStabilizer::teleportationType,
-			ByteBufCodecs.BOOL, SyncRiftStabilizer::allowed,
-			SyncRiftStabilizer::new);
-	//@formatter:on
-	@Override
-	public Type<? extends CustomPacketPayload> type() {
-		return TYPE;
+	public SyncRiftStabilizer() {}
+
+	public SyncRiftStabilizer(BlockPos pos, TeleportationType teleportationType, boolean allowed) {
+		this.pos = pos;
+		this.teleportationType = teleportationType;
+		this.allowed = allowed;
 	}
 
-	public void handle(IPayloadContext ctx) {
-		if (teleportationType != null) {
-			Player player = ctx.player();
-			Level level = player.level();
+	public SyncRiftStabilizer(FriendlyByteBuf buf) {
+		pos = buf.readBlockPos();
+		teleportationType = buf.readEnum(TeleportationType.class);
+		allowed = buf.readBoolean();
+	}
 
-			if (level.getBlockEntity(pos) instanceof RiftStabilizerBlockEntity be && be.isOwnedBy(player)) {
+	public void encode(FriendlyByteBuf buf) {
+		buf.writeBlockPos(pos);
+		buf.writeEnum(teleportationType);
+		buf.writeBoolean(allowed);
+	}
+
+	public void handle(Supplier<Context> ctx) {
+		if (teleportationType != null) {
+			Level level = ctx.get().getSender().level();
+
+			if (level.getBlockEntity(pos) instanceof RiftStabilizerBlockEntity be && be.isOwnedBy(ctx.get().getSender())) {
 				BlockState state = level.getBlockState(pos);
 
 				be.setFilter(teleportationType, allowed);

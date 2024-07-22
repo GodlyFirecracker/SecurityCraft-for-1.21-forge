@@ -21,7 +21,6 @@ import net.minecraft.world.Container;
 import net.minecraft.world.Containers;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.ItemInteractionResult;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -46,8 +45,8 @@ import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.phys.BlockHitResult;
-import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.common.Tags;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.common.Tags;
 
 public class KeypadBarrelBlock extends DisguisableBlock {
 	public static final DirectionProperty HORIZONTAL_FACING = BlockStateProperties.HORIZONTAL_FACING;
@@ -67,26 +66,22 @@ public class KeypadBarrelBlock extends DisguisableBlock {
 
 	@Override
 	public void setPlacedBy(Level level, BlockPos pos, BlockState state, LivingEntity entity, ItemStack stack) {
+		if (stack.hasCustomHoverName() && level.getBlockEntity(pos) instanceof KeypadBarrelBlockEntity barrel)
+			barrel.setCustomName(stack.getHoverName());
+
 		if (entity instanceof Player player)
-			NeoForge.EVENT_BUS.post(new OwnershipEvent(level, pos, player));
+			MinecraftForge.EVENT_BUS.post(new OwnershipEvent(level, pos, player));
 	}
 
 	@Override
-	protected ItemInteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
-		KeypadBarrelBlockEntity be = (KeypadBarrelBlockEntity) level.getBlockEntity(pos);
-
-		if (stack.is(Items.FROG_SPAWN_EGG) && be.isOwnedBy(player)) {
-			level.setBlockAndUpdate(pos, state.cycle(FROG));
-			return ItemInteractionResult.SUCCESS;
-		}
-
-		return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
-	}
-
-	@Override
-	public InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
+	public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
 		if (!level.isClientSide) {
 			KeypadBarrelBlockEntity be = (KeypadBarrelBlockEntity) level.getBlockEntity(pos);
+
+			if (player.getItemInHand(hand).is(Items.FROG_SPAWN_EGG) && be.isOwnedBy(player)) {
+				level.setBlockAndUpdate(pos, state.cycle(FROG));
+				return InteractionResult.SUCCESS;
+			}
 
 			if (be.verifyPasscodeSet(level, pos, be, player)) {
 				if (be.isDenied(player)) {
@@ -99,7 +94,7 @@ public class KeypadBarrelBlock extends DisguisableBlock {
 
 					activate(state, level, pos, player);
 				}
-				else
+				else if (!player.getItemInHand(hand).is(SCContent.CODEBREAKER.get()))
 					be.openPasscodeGUI(level, pos, player);
 			}
 		}
@@ -197,7 +192,7 @@ public class KeypadBarrelBlock extends DisguisableBlock {
 			KeypadBarrelBlockEntity keypadBarrel;
 
 			barrel.unpackLootTable(player); //generate loot (if any), so items don't spill out when converting and no additional loot table is generated
-			tag = barrel.saveWithFullMetadata(level.registryAccess());
+			tag = barrel.saveWithFullMetadata();
 			barrel.clearContent();
 			horizontalFacing = switch (generalFacing) {
 				case UP, DOWN -> player == null ? Direction.NORTH : player.getDirection().getOpposite();
@@ -205,7 +200,7 @@ public class KeypadBarrelBlock extends DisguisableBlock {
 			};
 			level.setBlockAndUpdate(pos, SCContent.KEYPAD_BARREL.get().defaultBlockState().setValue(HORIZONTAL_FACING, horizontalFacing).setValue(LID_FACING, generalFacing).setValue(OPEN, false));
 			keypadBarrel = (KeypadBarrelBlockEntity) level.getBlockEntity(pos);
-			keypadBarrel.loadWithComponents(tag, level.registryAccess());
+			keypadBarrel.load(tag);
 			keypadBarrel.setPreviousBarrel(state.getBlock());
 
 			if (player != null)
@@ -233,11 +228,11 @@ public class KeypadBarrelBlock extends DisguisableBlock {
 
 			keypadBarrel.dropAllModules();
 			keypadBarrel.unpackLootTable(player); //generate loot (if any), so items don't spill out when converting and no additional loot table is generated
-			tag = keypadBarrel.saveWithFullMetadata(level.registryAccess());
+			tag = keypadBarrel.saveWithFullMetadata();
 			keypadBarrel.clearContent();
 			level.setBlockAndUpdate(pos, convertedBlock.defaultBlockState().setValue(BarrelBlock.FACING, direction).setValue(OPEN, false));
 			barrel = (BarrelBlockEntity) level.getBlockEntity(pos);
-			barrel.loadWithComponents(tag, level.registryAccess());
+			barrel.load(tag);
 			return true;
 		}
 	}

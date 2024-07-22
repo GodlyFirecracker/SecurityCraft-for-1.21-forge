@@ -1,37 +1,35 @@
 package net.geforcemods.securitycraft.network.server;
 
+import java.util.function.Supplier;
+
 import net.geforcemods.securitycraft.SCContent;
-import net.geforcemods.securitycraft.SecurityCraft;
-import net.geforcemods.securitycraft.components.GlobalPositions;
+import net.geforcemods.securitycraft.items.CameraMonitorItem;
 import net.geforcemods.securitycraft.util.PlayerUtils;
-import net.minecraft.core.GlobalPos;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.network.NetworkEvent;
 
-public record RemoveCameraTag(GlobalPos globalPos) implements CustomPacketPayload {
-	public static final Type<RemoveCameraTag> TYPE = new Type<>(SecurityCraft.resLoc("remove_camera_tag"));
-	//@formatter:off
-	public static final StreamCodec<RegistryFriendlyByteBuf, RemoveCameraTag> STREAM_CODEC = StreamCodec.composite(
-			GlobalPos.STREAM_CODEC, RemoveCameraTag::globalPos,
-			RemoveCameraTag::new);
-	//@formatter:on
+public class RemoveCameraTag {
+	private int camID;
 
-	@Override
-	public Type<? extends CustomPacketPayload> type() {
-		return TYPE;
+	public RemoveCameraTag() {}
+
+	public RemoveCameraTag(int cid) {
+		camID = cid;
 	}
 
-	public void handle(IPayloadContext ctx) {
-		ItemStack stack = PlayerUtils.getItemStackFromAnyHand(ctx.player(), SCContent.CAMERA_MONITOR.get());
+	public RemoveCameraTag(FriendlyByteBuf buf) {
+		camID = buf.readInt();
+	}
 
-		if (!stack.isEmpty()) {
-			GlobalPositions cameras = stack.get(SCContent.BOUND_CAMERAS);
+	public void encode(FriendlyByteBuf buf) {
+		buf.writeInt(camID);
+	}
 
-			if (cameras != null)
-				cameras.remove(SCContent.BOUND_CAMERAS, stack, globalPos);
-		}
+	public void handle(Supplier<NetworkEvent.Context> ctx) {
+		ItemStack monitor = PlayerUtils.getItemStackFromAnyHand(ctx.get().getSender(), SCContent.CAMERA_MONITOR.get());
+
+		if (!monitor.isEmpty())
+			monitor.getTag().remove(CameraMonitorItem.getTagNameFromPosition(monitor.getTag(), CameraMonitorItem.getCameraPositions(monitor.getTag()).get(camID - 1)));
 	}
 }

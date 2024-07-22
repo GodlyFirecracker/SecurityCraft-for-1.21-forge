@@ -3,7 +3,6 @@ package net.geforcemods.securitycraft.blockentities;
 import net.geforcemods.securitycraft.SCContent;
 import net.geforcemods.securitycraft.api.OwnableBlockEntity;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -33,14 +32,14 @@ public class TrackMineBlockEntity extends OwnableBlockEntity {
 	}
 
 	@Override
-	public void saveAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
+	public void saveAdditional(CompoundTag tag) {
 		tag.putBoolean("TrackMineEnabled", active);
-		super.saveAdditional(tag, lookupProvider);
+		super.saveAdditional(tag);
 	}
 
 	@Override
-	public void loadAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.loadAdditional(tag, lookupProvider);
+	public void load(CompoundTag tag) {
+		super.load(tag);
 		active = tag.getBoolean("TrackMineEnabled");
 	}
 }

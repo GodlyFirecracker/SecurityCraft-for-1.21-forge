@@ -1,33 +1,38 @@
 package net.geforcemods.securitycraft.network.client;
 
-import net.geforcemods.securitycraft.SecurityCraft;
+import java.util.function.Supplier;
+
 import net.geforcemods.securitycraft.blockentities.TrophySystemBlockEntity;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.network.NetworkEvent;
 
-public record SetTrophySystemTarget(BlockPos pos, int targetID) implements CustomPacketPayload {
-	public static final Type<SetTrophySystemTarget> TYPE = new Type<>(SecurityCraft.resLoc("set_trophy_system_target"));
-	//@formatter:off
-	public static final StreamCodec<RegistryFriendlyByteBuf, SetTrophySystemTarget> STREAM_CODEC = StreamCodec.composite(
-			BlockPos.STREAM_CODEC, SetTrophySystemTarget::pos,
-			ByteBufCodecs.VAR_INT, SetTrophySystemTarget::targetID,
-			SetTrophySystemTarget::new);
-	//@formatter:on
+public class SetTrophySystemTarget {
+	private BlockPos trophyPos;
+	private int targetID;
 
-	@Override
-	public Type<? extends CustomPacketPayload> type() {
-		return TYPE;
+	public SetTrophySystemTarget() {}
+
+	public SetTrophySystemTarget(BlockPos trophyPos, int targetID) {
+		this.trophyPos = trophyPos;
+		this.targetID = targetID;
 	}
 
-	public void handle(IPayloadContext ctx) {
-		BlockEntity blockEntity = ctx.player().level().getBlockEntity(pos);
+	public SetTrophySystemTarget(FriendlyByteBuf buf) {
+		trophyPos = buf.readBlockPos();
+		targetID = buf.readInt();
+	}
+
+	public void encode(FriendlyByteBuf buf) {
+		buf.writeBlockPos(trophyPos);
+		buf.writeInt(targetID);
+	}
+
+	public void handle(Supplier<NetworkEvent.Context> ctx) {
+		BlockEntity blockEntity = Minecraft.getInstance().level.getBlockEntity(trophyPos);
 
 		if (blockEntity instanceof TrophySystemBlockEntity be && Minecraft.getInstance().level.getEntity(targetID) instanceof Projectile projectile)
 			be.setTarget(projectile);

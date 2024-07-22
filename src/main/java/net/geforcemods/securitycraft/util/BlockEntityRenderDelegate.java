@@ -10,10 +10,10 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraftforge.registries.ForgeRegistries;
 
 public class BlockEntityRenderDelegate {
 	private final Map<BlockEntity, DelegateRendererInfo> renderDelegates = new HashMap<>();
@@ -63,7 +63,7 @@ public class BlockEntityRenderDelegate {
 				copyPose.popPose();
 			}
 			catch (Exception e) {
-				SecurityCraft.LOGGER.warn("Error when delegate-rendering {}", BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(delegateRendererInfo.delegateBlockEntity().getType()));
+				SecurityCraft.LOGGER.warn("Error when delegate-rendering {}", ForgeRegistries.BLOCK_ENTITY_TYPES.getKey(delegateRendererInfo.delegateBlockEntity().getType()));
 				e.printStackTrace();
 				removeDelegateOf(originalBlockEntity);
 			}

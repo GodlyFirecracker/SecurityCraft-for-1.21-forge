@@ -1,34 +1,33 @@
 package net.geforcemods.securitycraft.items;
 
-import java.util.List;
-
+import net.geforcemods.securitycraft.ConfigHandler;
 import net.geforcemods.securitycraft.SCContent;
 import net.geforcemods.securitycraft.SecurityCraft;
-import net.geforcemods.securitycraft.components.CodebreakerData;
 import net.geforcemods.securitycraft.inventory.BriefcaseMenu;
 import net.geforcemods.securitycraft.inventory.ItemContainer;
 import net.geforcemods.securitycraft.util.PlayerUtils;
 import net.geforcemods.securitycraft.util.Utils;
 import net.minecraft.ChatFormatting;
-import net.minecraft.core.Holder;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.MenuProvider;
-import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.world.item.Rarity;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.level.Level;
+import net.minecraftforge.network.NetworkHooks;
 
 public class CodebreakerItem extends Item {
-	public static final ResourceLocation STATE_PROPERTY = SecurityCraft.resLoc("codebreaker_state");
-	private static final Component DISABLED = Component.translatable("tooltip.securitycraft.component.success_chance.disabled").withStyle(ChatFormatting.RED);
+	public static final ResourceLocation STATE_PROPERTY = new ResourceLocation(SecurityCraft.MODID, "codebreaker_state");
+	public static final String WORKING = "working", LAST_USED_TIME = "last_used_time", WAS_SUCCESSFUL = "was_successful";
 
 	public CodebreakerItem(Item.Properties properties) {
 		super(properties);
@@ -43,25 +42,27 @@ public class CodebreakerItem extends Item {
 
 			if (briefcase.is(SCContent.BRIEFCASE.get())) {
 				if (BriefcaseItem.isOwnedBy(briefcase, player) && !player.isCreative())
-					PlayerUtils.sendMessageToPlayer(player, Utils.localize(getDescriptionId()), Utils.localize("messages.securitycraft:codebreaker.owned"), ChatFormatting.RED);
+					PlayerUtils.sendMessageToPlayer(player, Utils.localize(SCContent.CODEBREAKER.get().getDescriptionId()), Utils.localize("messages.securitycraft:codebreaker.owned"), ChatFormatting.RED);
 				else {
-					double chance = getSuccessChance(codebreaker);
+					double chance = ConfigHandler.SERVER.codebreakerChance.get();
 
 					if (chance < 0.0D)
-						PlayerUtils.sendMessageToPlayer(player, Utils.localize(getDescriptionId()), Utils.localize("messages.securitycraft:codebreakerDisabled"), ChatFormatting.RED);
+						PlayerUtils.sendMessageToPlayer(player, Utils.localize(SCContent.CODEBREAKER.get().getDescriptionId()), Utils.localize("messages.securitycraft:codebreakerDisabled"), ChatFormatting.RED);
 					else {
-						codebreaker.hurtAndBreak(1, player, LivingEntity.getSlotForHand(hand));
+						codebreaker.hurtAndBreak(1, player, p -> p.broadcastBreakEvent(hand));
 
 						if (!level.isClientSide) {
-							if (!player.isCreative() && codebreaker.getOrDefault(SCContent.CODEBREAKER_DATA, CodebreakerData.DEFAULT).wasRecentlyUsed())
+							if (!player.isCreative() && wasRecentlyUsed(codebreaker))
 								return InteractionResultHolder.pass(codebreaker);
 
 							boolean isSuccessful = player.isCreative() || SecurityCraft.RANDOM.nextDouble() < chance;
+							CompoundTag tag = codebreaker.getOrCreateTag();
 
-							codebreaker.set(SCContent.CODEBREAKER_DATA, new CodebreakerData(System.currentTimeMillis(), isSuccessful));
+							tag.putLong(LAST_USED_TIME, System.currentTimeMillis());
+							tag.putBoolean(WAS_SUCCESSFUL, isSuccessful);
 
 							if (isSuccessful) {
-								player.openMenu(new MenuProvider() {
+								NetworkHooks.openScreen((ServerPlayer) player, new MenuProvider() {
 									@Override
 									public AbstractContainerMenu createMenu(int windowId, Inventory inv, Player player) {
 										return new BriefcaseMenu(windowId, inv, ItemContainer.briefcase(briefcase));
@@ -74,7 +75,7 @@ public class CodebreakerItem extends Item {
 								}, player.blockPosition());
 							}
 							else
-								PlayerUtils.sendMessageToPlayer(player, Component.translatable(getDescriptionId()), Utils.localize("messages.securitycraft:codebreaker.failed"), ChatFormatting.RED);
+								PlayerUtils.sendMessageToPlayer(player, Component.translatable(SCContent.CODEBREAKER.get().getDescriptionId()), Utils.localize("messages.securitycraft:codebreaker.failed"), ChatFormatting.RED);
 						}
 					}
 				}
@@ -86,14 +87,10 @@ public class CodebreakerItem extends Item {
 		return InteractionResultHolder.pass(codebreaker);
 	}
 
-	@Override
-	public void appendHoverText(ItemStack stack, TooltipContext ctx, List<Component> list, TooltipFlag flag) {
-		double chance = getSuccessChance(stack) * 100;
+	public static boolean wasRecentlyUsed(ItemStack stack) {
+		long lastUsedTime = stack.getOrCreateTag().getLong(CodebreakerItem.LAST_USED_TIME);
 
-		if (chance < 0.0D)
-			list.add(DISABLED);
-		else
-			list.add(Component.translatable("tooltip.securitycraft.component.success_chance", chance + "%").withStyle(ChatFormatting.GRAY));
+		return lastUsedTime != 0 && System.currentTimeMillis() - lastUsedTime < 3000L;
 	}
 
 	@Override
@@ -102,7 +99,12 @@ public class CodebreakerItem extends Item {
 	}
 
 	@Override
-	public boolean isPrimaryItemFor(ItemStack stack, Holder<Enchantment> enchantment) {
+	public Rarity getRarity(ItemStack stack) {
+		return Rarity.RARE;
+	}
+
+	@Override
+	public boolean canApplyAtEnchantingTable(ItemStack stack, Enchantment enchantment) {
 		return false;
 	}
 
@@ -114,9 +116,5 @@ public class CodebreakerItem extends Item {
 	@Override
 	public boolean isEnchantable(ItemStack stack) {
 		return false;
-	}
-
-	public static double getSuccessChance(ItemStack codebreaker) {
-		return codebreaker.getOrDefault(SCContent.SUCCESS_CHANCE, 1.0D);
 	}
 }

@@ -1,43 +1,56 @@
 package net.geforcemods.securitycraft.network.server;
 
+import java.util.function.Supplier;
+
 import net.geforcemods.securitycraft.SCContent;
-import net.geforcemods.securitycraft.SCStreamCodecs;
-import net.geforcemods.securitycraft.SecurityCraft;
-import net.geforcemods.securitycraft.components.SavedBlockState;
 import net.geforcemods.securitycraft.util.PlayerUtils;
 import net.geforcemods.securitycraft.util.StandingOrWallType;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtUtils;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.neoforge.network.codec.NeoForgeStreamCodecs;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.network.NetworkEvent;
+import net.minecraftforge.registries.GameData;
 
-public record SetStateOnDisguiseModule(BlockState state, StandingOrWallType standingOrWall) implements CustomPacketPayload {
-	public static final Type<SetStateOnDisguiseModule> TYPE = new Type<>(SecurityCraft.resLoc("set_state_on_disguise_module"));
-	//@formatter:off
-	public static final StreamCodec<RegistryFriendlyByteBuf, SetStateOnDisguiseModule> STREAM_CODEC = StreamCodec.composite(
-			SCStreamCodecs.BLOCK_STATE, SetStateOnDisguiseModule::state,
-			NeoForgeStreamCodecs.enumCodec(StandingOrWallType.class), SetStateOnDisguiseModule::standingOrWall,
-			SetStateOnDisguiseModule::new);
-	//@formatter:on
+public class SetStateOnDisguiseModule {
+	private BlockState state;
+	private StandingOrWallType standingOrWall;
 
-	@Override
-	public Type<? extends CustomPacketPayload> type() {
-		return TYPE;
+	public SetStateOnDisguiseModule() {}
+
+	public SetStateOnDisguiseModule(BlockState state, StandingOrWallType standingOrWall) {
+		this.state = state;
+		this.standingOrWall = standingOrWall;
 	}
 
-	public void handle(IPayloadContext ctx) {
-		Player player = ctx.player();
+	public SetStateOnDisguiseModule(FriendlyByteBuf buf) {
+		state = GameData.getBlockStateIDMap().byId(buf.readInt());
+		standingOrWall = buf.readEnum(StandingOrWallType.class);
+	}
+
+	public void encode(FriendlyByteBuf buf) {
+		buf.writeInt(GameData.getBlockStateIDMap().getId(state));
+		buf.writeEnum(standingOrWall);
+	}
+
+	public void handle(Supplier<NetworkEvent.Context> ctx) {
+		Player player = ctx.get().getSender();
 		ItemStack stack = PlayerUtils.getItemStackFromAnyHand(player, SCContent.DISGUISE_MODULE.get());
 
 		if (!stack.isEmpty()) {
-			if (state.isAir())
-				stack.set(SCContent.SAVED_BLOCK_STATE, SavedBlockState.EMPTY);
-			else
-				stack.set(SCContent.SAVED_BLOCK_STATE, new SavedBlockState(state, standingOrWall));
+			CompoundTag tag = stack.getOrCreateTag();
+
+			if (state.isAir()) {
+				tag.remove("SavedState");
+				tag.remove("StandingOrWall");
+				tag.remove("ItemInventory");
+			}
+			else {
+				tag.put("SavedState", NbtUtils.writeBlockState(state));
+				tag.putInt("StandingOrWall", standingOrWall.ordinal());
+			}
 		}
 	}
 }

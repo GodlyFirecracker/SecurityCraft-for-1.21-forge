@@ -17,7 +17,7 @@ import net.minecraft.world.level.block.piston.PistonBaseBlock;
 import net.minecraft.world.level.block.piston.PistonHeadBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.PistonType;
-import net.neoforged.neoforge.client.ClientHooks;
+import net.minecraftforge.client.ForgeHooksClient;
 
 public class ReinforcedPistonHeadRenderer implements BlockEntityRenderer<ReinforcedPistonMovingBlockEntity> {
 	private BlockRenderDispatcher blockRenderer;
@@ -68,7 +68,7 @@ public class ReinforcedPistonHeadRenderer implements BlockEntityRenderer<Reinfor
 		if (blockRenderer == null)
 			blockRenderer = Minecraft.getInstance().getBlockRenderer();
 
-		ClientHooks.renderPistonMovedBlocks(pos, state, poseStack, buffer, level, checkSides, combinedOverlay, blockRenderer);
+		ForgeHooksClient.renderPistonMovedBlocks(pos, state, poseStack, buffer, level, checkSides, combinedOverlay, blockRenderer);
 	}
 
 	@Override

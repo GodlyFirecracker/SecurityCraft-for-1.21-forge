@@ -28,18 +28,18 @@ import snownee.jade.impl.Tooltip;
 import snownee.jade.impl.ui.TextElement;
 
 @WailaPlugin(SecurityCraft.MODID)
-public final class JadeDataProvider extends HudModHandler implements IWailaPlugin {
+public final class JadeDataProvider extends HudModHandler implements IWailaPlugin, IBlockComponentProvider, IEntityComponentProvider {
 	@Override
 	public void registerClient(IWailaClientRegistration registration) {
 		registration.addConfig(SHOW_OWNER, true);
 		registration.addConfig(SHOW_MODULES, true);
 		registration.addConfig(SHOW_CUSTOM_NAME, true);
 
-		registration.registerBlockComponent(new SecurityCraftBlockInfo(), Block.class);
-		registration.registerEntityComponent(new SecurityCraftEntityInfo(), Sentry.class);
-		registration.registerEntityComponent(new SecurityCraftEntityInfo(), SecuritySeaBoat.class);
+		registration.registerBlockComponent(this, Block.class);
+		registration.registerEntityComponent(this, Sentry.class);
+		registration.registerEntityComponent(this, SecuritySeaBoat.class);
 
-		registration.addBeforeRenderCallback((tooltip, rect, guiGraphics, accessor) -> ClientHandler.isPlayerMountedOnCamera());
+		registration.addBeforeRenderCallback((tooltip, rect, guiGraphics, accessor, color) -> ClientHandler.isPlayerMountedOnCamera());
 		registration.addRayTraceCallback((hit, accessor, original) -> {
 			if (accessor instanceof BlockAccessor blockAccessor) {
 				Block block = blockAccessor.getBlock();
@@ -62,35 +62,26 @@ public final class JadeDataProvider extends HudModHandler implements IWailaPlugi
 		});
 	}
 
-	private class SecurityCraftBlockInfo implements IBlockComponentProvider {
-		@Override
-		public void appendTooltip(ITooltip tooltip, BlockAccessor data, IPluginConfig config) {
-			Level level = data.getLevel();
-			BlockPos pos = data.getPosition();
-			BlockState state = data.getBlockState();
-			Block block = data.getBlock();
+	@Override
+	public void appendTooltip(ITooltip tooltip, BlockAccessor data, IPluginConfig config) {
+		Level level = data.getLevel();
+		BlockPos pos = data.getPosition();
+		BlockState state = data.getBlockState();
+		Block block = data.getBlock();
 
-			addDisguisedOwnerModuleNameInfo(level, pos, state, block, data.getBlockEntity(), data.getPlayer(), tooltip::add, config::get);
+		addDisguisedOwnerModuleNameInfo(level, pos, state, block, data.getBlockEntity(), data.getPlayer(), tooltip::add, config::get);
 
-			if (tooltip instanceof Tooltip t && block instanceof IOverlayDisplay overlayDisplay)
-				t.lines.get(0).alignedElements(Align.LEFT).set(0, new TextElement(Component.translatable(overlayDisplay.getDisplayStack(level, state, pos).getDescriptionId()).setStyle(ITEM_NAME_STYLE)));
-		}
-
-		@Override
-		public ResourceLocation getUid() {
-			return SecurityCraft.resLoc("block_info");
-		}
+		if (tooltip instanceof Tooltip t && block instanceof IOverlayDisplay overlayDisplay)
+			t.lines.get(0).getAlignedElements(Align.LEFT).set(0, new TextElement(Component.translatable(overlayDisplay.getDisplayStack(level, state, pos).getDescriptionId()).setStyle(ITEM_NAME_STYLE)));
 	}
 
-	private class SecurityCraftEntityInfo implements IEntityComponentProvider {
-		@Override
-		public void appendTooltip(ITooltip tooltip, EntityAccessor data, IPluginConfig config) {
-			addEntityInfo(data.getEntity(), data.getPlayer(), tooltip::add, config::get);
-		}
+	@Override
+	public void appendTooltip(ITooltip tooltip, EntityAccessor data, IPluginConfig config) {
+		addEntityInfo(data.getEntity(), data.getPlayer(), tooltip::add, config::get);
+	}
 
-		@Override
-		public ResourceLocation getUid() {
-			return SecurityCraft.resLoc("entity_info");
-		}
+	@Override
+	public ResourceLocation getUid() {
+		return new ResourceLocation(SecurityCraft.MODID, "info");
 	}
 }

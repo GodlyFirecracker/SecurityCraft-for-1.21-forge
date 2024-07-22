@@ -1,6 +1,7 @@
 package net.geforcemods.securitycraft;
 
 import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.tags.TagKey;
@@ -21,7 +22,6 @@ public class SCTags {
 		public static final TagKey<Block> REINFORCED_BUTTONS = tag("reinforced/buttons");
 		public static final TagKey<Block> REINFORCED_CHERRY_LOGS = tag("reinforced/cherry_logs");
 		public static final TagKey<Block> REINFORCED_COBBLESTONE = tag("reinforced/cobblestone");
-		public static final TagKey<Block> REINFORCED_CONCRETE = tag("reinforced/concrete");
 		public static final TagKey<Block> REINFORCED_CRIMSON_STEMS = tag("reinforced/crimson_stems");
 		public static final TagKey<Block> REINFORCED_DARK_OAK_LOGS = tag("reinforced/dark_oak_logs");
 		public static final TagKey<Block> REINFORCED_DIRT = tag("reinforced/dirt");
@@ -29,7 +29,6 @@ public class SCTags {
 		public static final TagKey<Block> REINFORCED_FENCES = tag("reinforced/fences");
 		public static final TagKey<Block> REINFORCED_FENCE_GATES = tag("reinforced/fence_gates");
 		public static final TagKey<Block> REINFORCED_GLASS_PANES = tag("reinforced/glass_panes");
-		public static final TagKey<Block> REINFORCED_GLAZED_TERRACOTTA = tag("reinforced/glazed_terracotta");
 		public static final TagKey<Block> REINFORCED_ICE = tag("reinforced/ice");
 		public static final TagKey<Block> REINFORCED_JUNGLE_LOGS = tag("reinforced/jungle_logs");
 		public static final TagKey<Block> REINFORCED_LOGS = tag("reinforced/logs");
@@ -64,7 +63,7 @@ public class SCTags {
 		public static final TagKey<Block> SUSPICIOUS_MINES = tag("suspicious_mines");
 
 		private static TagKey<Block> tag(String name) {
-			return BlockTags.create(SecurityCraft.resLoc(name));
+			return BlockTags.create(new ResourceLocation(SecurityCraft.MODID, name));
 		}
 	}
 
@@ -74,7 +73,7 @@ public class SCTags {
 		public static final TagKey<DamageType> SECURITY_SEA_BOAT_VULNERABLE_TO = tag("security_sea_boat_vulnerable_to");
 
 		private static TagKey<DamageType> tag(String name) {
-			return TagKey.create(Registries.DAMAGE_TYPE, SecurityCraft.resLoc(name));
+			return TagKey.create(Registries.DAMAGE_TYPE, new ResourceLocation(SecurityCraft.MODID, name));
 		}
 	}
 
@@ -82,6 +81,8 @@ public class SCTags {
 		private Items() {}
 
 		public static final TagKey<Item> CAN_INTERACT_WITH_DOORS = tag("can_interact_with_doors");
+		public static final TagKey<Item> KEYCARDS = tag("keycards");
+		public static final TagKey<Item> KEYCARD_HOLDER_CAN_HOLD = tag("keycard_holder_can_hold");
 		public static final TagKey<Item> MODULES = tag("modules");
 		public static final TagKey<Item> REINFORCED_ACACIA_LOGS = tag("reinforced/acacia_logs");
 		public static final TagKey<Item> REINFORCED_BAMBOO_BLOCKS = tag("reinforced/bamboo_blocks");
@@ -89,7 +90,6 @@ public class SCTags {
 		public static final TagKey<Item> REINFORCED_BUTTONS = tag("reinforced/buttons");
 		public static final TagKey<Item> REINFORCED_CHERRY_LOGS = tag("reinforced/cherry_logs");
 		public static final TagKey<Item> REINFORCED_COBBLESTONE = tag("reinforced/cobblestone");
-		public static final TagKey<Item> REINFORCED_CONCRETE = tag("reinforced/concrete");
 		public static final TagKey<Item> REINFORCED_CRIMSON_STEMS = tag("reinforced/crimson_stems");
 		public static final TagKey<Item> REINFORCED_DARK_OAK_LOGS = tag("reinforced/dark_oak_logs");
 		public static final TagKey<Item> REINFORCED_DIRT = tag("reinforced/dirt");
@@ -97,7 +97,6 @@ public class SCTags {
 		public static final TagKey<Item> REINFORCED_FENCES = tag("reinforced/fences");
 		public static final TagKey<Item> REINFORCED_FENCE_GATES = tag("reinforced/fence_gates");
 		public static final TagKey<Item> REINFORCED_GLASS_PANES = tag("reinforced/glass_panes");
-		public static final TagKey<Item> REINFORCED_GLAZED_TERRACOTTA = tag("reinforced/glazed_terracotta");
 		public static final TagKey<Item> REINFORCED_ICE = tag("reinforced/ice");
 		public static final TagKey<Item> REINFORCED_JUNGLE_LOGS = tag("reinforced/jungle_logs");
 		public static final TagKey<Item> REINFORCED_LOGS = tag("reinforced/logs");
@@ -129,7 +128,7 @@ public class SCTags {
 		public static final TagKey<Item> SECRET_SIGNS = tag("secret_signs");
 
 		private static TagKey<Item> tag(String name) {
-			return ItemTags.create(SecurityCraft.resLoc(name));
+			return ItemTags.create(new ResourceLocation(SecurityCraft.MODID, name));
 		}
 	}
 }

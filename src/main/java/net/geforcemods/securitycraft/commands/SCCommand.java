@@ -4,7 +4,7 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.ArgumentBuilder;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 
-import net.geforcemods.securitycraft.misc.Tips;
+import net.geforcemods.securitycraft.network.client.SendTip;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -12,7 +12,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
-import net.neoforged.neoforge.common.CommonHooks;
+import net.minecraftforge.common.ForgeHooks;
 
 public class SCCommand {
 	private SCCommand() {}
@@ -42,7 +42,7 @@ public class SCCommand {
 					.append(Component.literal("] ")).setStyle(Style.EMPTY.withColor(ChatFormatting.WHITE))
 					.append(Component.translatableWithFallback("commands.securitycraft.bug", "Please report bugs in the #bugreport channel on our Discord server. Read the rules first, please"))
 					.append(Component.literal(": "))
-					.append(CommonHooks.newChatWithLinks(Tips.TIPS_WITH_LINK.get("discord"))), true);
+					.append(ForgeHooks.newChatWithLinks(SendTip.TIPS_WITH_LINK.get("discord"))), true);
 			//@formatter:on
 			return 0;
 		});
@@ -56,7 +56,7 @@ public class SCCommand {
 					.append(Component.literal("] "))
 					.append(Component.translatableWithFallback("commands.securitycraft.connect", "IRC chat is no longer supported as of v1.8.3 of SecurityCraft. If you need help, please refer to the #help channel on SecurityCraft's Discord!"))
 					.append(Component.literal(" "))
-					.append(CommonHooks.newChatWithLinks(Tips.TIPS_WITH_LINK.get("discord"))), true);
+					.append(ForgeHooks.newChatWithLinks(SendTip.TIPS_WITH_LINK.get("discord"))), true);
 			//@formatter:on
 			return 0;
 		});

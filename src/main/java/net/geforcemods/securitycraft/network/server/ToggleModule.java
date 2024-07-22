@@ -1,6 +1,7 @@
 package net.geforcemods.securitycraft.network.server;
 
-import net.geforcemods.securitycraft.SecurityCraft;
+import java.util.function.Supplier;
+
 import net.geforcemods.securitycraft.api.ILinkedAction;
 import net.geforcemods.securitycraft.api.IModuleInventory;
 import net.geforcemods.securitycraft.api.IOwnable;
@@ -8,43 +9,19 @@ import net.geforcemods.securitycraft.api.LinkableBlockEntity;
 import net.geforcemods.securitycraft.items.ModuleItem;
 import net.geforcemods.securitycraft.misc.ModuleType;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.network.NetworkEvent;
 
-public class ToggleModule implements CustomPacketPayload {
-	public static final Type<ToggleModule> TYPE = new Type<>(SecurityCraft.resLoc("toggle_module"));
-	public static final StreamCodec<RegistryFriendlyByteBuf, ToggleModule> STREAM_CODEC = new StreamCodec<>() {
-		@Override
-		public ToggleModule decode(RegistryFriendlyByteBuf buf) {
-			if (buf.readBoolean())
-				return new ToggleModule(buf.readBlockPos(), buf.readEnum(ModuleType.class));
-			else
-				return new ToggleModule(buf.readVarInt(), buf.readEnum(ModuleType.class));
-		}
-
-		@Override
-		public void encode(RegistryFriendlyByteBuf buf, ToggleModule packet) {
-			boolean hasPos = packet.pos != null;
-
-			buf.writeBoolean(hasPos);
-
-			if (hasPos)
-				buf.writeBlockPos(packet.pos);
-			else
-				buf.writeVarInt(packet.entityId);
-
-			buf.writeEnum(packet.moduleType);
-		}
-	};
+public class ToggleModule {
 	private BlockPos pos;
 	private ModuleType moduleType;
 	private int entityId;
+
+	public ToggleModule() {}
 
 	public ToggleModule(BlockPos pos, ModuleType moduleType) {
 		this.pos = pos;
@@ -56,13 +33,30 @@ public class ToggleModule implements CustomPacketPayload {
 		this.moduleType = moduleType;
 	}
 
-	@Override
-	public Type<? extends CustomPacketPayload> type() {
-		return TYPE;
+	public ToggleModule(FriendlyByteBuf buf) {
+		if (buf.readBoolean())
+			pos = buf.readBlockPos();
+		else
+			entityId = buf.readVarInt();
+
+		moduleType = buf.readEnum(ModuleType.class);
 	}
 
-	public void handle(IPayloadContext ctx) {
-		Player player = ctx.player();
+	public void encode(FriendlyByteBuf buf) {
+		boolean hasPos = pos != null;
+
+		buf.writeBoolean(hasPos);
+
+		if (hasPos)
+			buf.writeBlockPos(pos);
+		else
+			buf.writeVarInt(entityId);
+
+		buf.writeEnum(moduleType);
+	}
+
+	public void handle(Supplier<NetworkEvent.Context> ctx) {
+		Player player = ctx.get().getSender();
 		Level level = player.level();
 		IModuleInventory moduleInv = getModuleInventory(level);
 

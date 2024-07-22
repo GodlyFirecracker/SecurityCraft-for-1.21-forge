@@ -1,5 +1,7 @@
 package net.geforcemods.securitycraft.commands;
 
+import org.apache.commons.lang3.function.TriFunction;
+
 import com.mojang.brigadier.builder.ArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
@@ -20,7 +22,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
-import net.neoforged.neoforge.common.util.TriPredicate;
 
 public class ConvertCommand {
 	private static final SimpleCommandExceptionType ERROR_SET_FAILED = new SimpleCommandExceptionType(Component.translatableWithFallback("commands.securitycraft.convert.set.failed", "There is no convertible block at the given position"));
@@ -122,14 +123,14 @@ public class ConvertCommand {
 			return false;
 		});
 
-		private final TriPredicate<BlockState, Level, BlockPos> converter;
+		private final TriFunction<BlockState, Level, BlockPos, Boolean> converter;
 
-		ConversionMode(TriPredicate<BlockState, Level, BlockPos> converter) {
+		ConversionMode(TriFunction<BlockState, Level, BlockPos, Boolean> converter) {
 			this.converter = converter;
 		}
 
 		public boolean convert(BlockState state, Level level, BlockPos pos) {
-			return converter.test(state, level, pos);
+			return converter.apply(state, level, pos);
 		}
 	}
 }

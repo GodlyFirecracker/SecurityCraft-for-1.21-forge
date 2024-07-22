@@ -1,31 +1,34 @@
 package net.geforcemods.securitycraft.network.client;
 
-import net.geforcemods.securitycraft.SecurityCraft;
+import java.util.function.Supplier;
+
 import net.geforcemods.securitycraft.blockentities.BlockPocketManagerBlockEntity;
+import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.world.level.Level;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraftforge.network.NetworkEvent;
 
-public record BlockPocketManagerFailedActivation(BlockPos pos) implements CustomPacketPayload {
-	public static final Type<BlockPocketManagerFailedActivation> TYPE = new Type<>(SecurityCraft.resLoc("block_pocket_manager_failed_activation"));
-	//@formatter:off
-	public static final StreamCodec<RegistryFriendlyByteBuf, BlockPocketManagerFailedActivation> STREAM_CODEC = StreamCodec.composite(
-			BlockPos.STREAM_CODEC, BlockPocketManagerFailedActivation::pos,
-			BlockPocketManagerFailedActivation::new);
-	//@formatter:on
+public class BlockPocketManagerFailedActivation {
+	private BlockPos pos;
 
-	@Override
-	public Type<? extends CustomPacketPayload> type() {
-		return TYPE;
+	public BlockPocketManagerFailedActivation() {}
+
+	public BlockPocketManagerFailedActivation(BlockPos pos) {
+		this.pos = pos;
 	}
 
-	public void handle(IPayloadContext ctx) {
-		Level level = ctx.player().level();
+	public BlockPocketManagerFailedActivation(FriendlyByteBuf buf) {
+		pos = buf.readBlockPos();
+	}
 
-		if (level.getBlockEntity(pos) instanceof BlockPocketManagerBlockEntity be)
+	public void encode(FriendlyByteBuf buf) {
+		buf.writeBlockPos(pos);
+	}
+
+	public void handle(Supplier<NetworkEvent.Context> ctx) {
+		Minecraft mc = Minecraft.getInstance();
+
+		if (mc.level.getBlockEntity(pos) instanceof BlockPocketManagerBlockEntity be)
 			be.setEnabled(false);
 	}
 }

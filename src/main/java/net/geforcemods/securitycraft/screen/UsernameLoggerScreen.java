@@ -25,11 +25,10 @@ import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import net.neoforged.neoforge.client.gui.widget.ScrollPanel;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraftforge.client.gui.widget.ScrollPanel;
 
 public class UsernameLoggerScreen extends Screen {
-	private static final ResourceLocation TEXTURE = SecurityCraft.resLoc("textures/gui/container/blank.png");
+	private static final ResourceLocation TEXTURE = new ResourceLocation("securitycraft:textures/gui/container/blank.png");
 	private final Component logged = Utils.localize("gui.securitycraft:logger.logged");
 	private int imageWidth = 176;
 	private int imageHeight = 166;
@@ -52,7 +51,7 @@ public class UsernameLoggerScreen extends Screen {
 
 		Button clearButton = addRenderableWidget(SmallButton.createWithX(leftPos + 4, topPos + 4, b -> {
 			be.setPlayers(new String[100]);
-			PacketDistributor.sendToServer(new ClearLoggerServer(be.getBlockPos()));
+			SecurityCraft.CHANNEL.sendToServer(new ClearLoggerServer(be.getBlockPos()));
 		}));
 
 		clearButton.active = be.isOwnedBy(minecraft.player);
@@ -62,14 +61,10 @@ public class UsernameLoggerScreen extends Screen {
 
 	@Override
 	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+		renderBackground(guiGraphics);
+		guiGraphics.blit(TEXTURE, leftPos, topPos, 0, 0, imageWidth, imageHeight);
 		super.render(guiGraphics, mouseX, mouseY, partialTick);
 		guiGraphics.drawString(font, logged, width / 2 - font.width(logged) / 2, topPos + 6, 4210752, false);
-	}
-
-	@Override
-	public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-		renderTransparentBackground(guiGraphics);
-		guiGraphics.blit(TEXTURE, leftPos, topPos, 0, 0, imageWidth, imageHeight);
 	}
 
 	@Override
@@ -122,11 +117,6 @@ public class UsernameLoggerScreen extends Screen {
 		}
 
 		@Override
-		protected void drawBackground(GuiGraphics guiGraphics, Tesselator tess, float partialTick) {
-			drawGradientRect(guiGraphics, left, top, right, bottom, 0xC0101010, 0xD0101010);
-		}
-
-		@Override
 		public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
 			super.render(guiGraphics, mouseX, mouseY, partialTicks);
 
@@ -151,7 +141,7 @@ public class UsernameLoggerScreen extends Screen {
 		}
 
 		@Override
-		protected void drawPanel(GuiGraphics guiGraphics, int entryRight, int relativeY, Tesselator tesselator, int mouseX, int mouseY) {
+		protected void drawPanel(GuiGraphics guiGraphics, int entryRight, int relativeY, Tesselator tess, int mouseX, int mouseY) {
 			int baseY = top + border - (int) scrollDistance;
 			int slotBuffer = SLOT_HEIGHT - 4;
 			int mouseListY = (int) (mouseY - top + scrollDistance - border);
@@ -165,20 +155,20 @@ public class UsernameLoggerScreen extends Screen {
 					int min = left;
 					int max = entryRight - 6; //6 is the width of the scrollbar
 					int slotTop = baseY + slotIndex * SLOT_HEIGHT;
-					BufferBuilder bufferBuilder;
+					BufferBuilder bufferBuilder = tess.getBuilder();
 
 					RenderSystem.enableBlend();
 					RenderSystem.defaultBlendFunc();
-					bufferBuilder = tesselator.begin(Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
-					bufferBuilder.addVertex(min, slotTop + slotBuffer + 2, 0).setColor(0x80, 0x80, 0x80, 0xFF);
-					bufferBuilder.addVertex(max, slotTop + slotBuffer + 2, 0).setColor(0x80, 0x80, 0x80, 0xFF);
-					bufferBuilder.addVertex(max, slotTop - 2, 0).setColor(0x80, 0x80, 0x80, 0xFF);
-					bufferBuilder.addVertex(min, slotTop - 2, 0).setColor(0x80, 0x80, 0x80, 0xFF);
-					bufferBuilder.addVertex(min + 1, slotTop + slotBuffer + 1, 0).setColor(0x00, 0x00, 0x00, 0xFF);
-					bufferBuilder.addVertex(max - 1, slotTop + slotBuffer + 1, 0).setColor(0x00, 0x00, 0x00, 0xFF);
-					bufferBuilder.addVertex(max - 1, slotTop - 1, 0).setColor(0x00, 0x00, 0x00, 0xFF);
-					bufferBuilder.addVertex(min + 1, slotTop - 1, 0).setColor(0x00, 0x00, 0x00, 0xFF);
-					BufferUploader.drawWithShader(bufferBuilder.buildOrThrow());
+					bufferBuilder.begin(Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+					bufferBuilder.vertex(min, slotTop + slotBuffer + 2, 0).color(0x80, 0x80, 0x80, 0xFF).endVertex();
+					bufferBuilder.vertex(max, slotTop + slotBuffer + 2, 0).color(0x80, 0x80, 0x80, 0xFF).endVertex();
+					bufferBuilder.vertex(max, slotTop - 2, 0).color(0x80, 0x80, 0x80, 0xFF).endVertex();
+					bufferBuilder.vertex(min, slotTop - 2, 0).color(0x80, 0x80, 0x80, 0xFF).endVertex();
+					bufferBuilder.vertex(min + 1, slotTop + slotBuffer + 1, 0).color(0x00, 0x00, 0x00, 0xFF).endVertex();
+					bufferBuilder.vertex(max - 1, slotTop + slotBuffer + 1, 0).color(0x00, 0x00, 0x00, 0xFF).endVertex();
+					bufferBuilder.vertex(max - 1, slotTop - 1, 0).color(0x00, 0x00, 0x00, 0xFF).endVertex();
+					bufferBuilder.vertex(min + 1, slotTop - 1, 0).color(0x00, 0x00, 0x00, 0xFF).endVertex();
+					BufferUploader.drawWithShader(bufferBuilder.end());
 					RenderSystem.disableBlend();
 				}
 			}

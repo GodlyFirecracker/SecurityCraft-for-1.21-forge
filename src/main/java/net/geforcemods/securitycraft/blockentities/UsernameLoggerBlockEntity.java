@@ -3,6 +3,7 @@ package net.geforcemods.securitycraft.blockentities;
 import java.util.List;
 
 import net.geforcemods.securitycraft.SCContent;
+import net.geforcemods.securitycraft.SecurityCraft;
 import net.geforcemods.securitycraft.api.ILockable;
 import net.geforcemods.securitycraft.api.Option;
 import net.geforcemods.securitycraft.api.Option.DisabledOption;
@@ -13,15 +14,12 @@ import net.geforcemods.securitycraft.misc.ModuleType;
 import net.geforcemods.securitycraft.network.client.UpdateLogger;
 import net.geforcemods.securitycraft.util.ITickingBlockEntity;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraftforge.network.PacketDistributor;
 
 public class UsernameLoggerBlockEntity extends DisguisableBlockEntity implements ITickingBlockEntity, ILockable {
 	private static final int TICKS_BETWEEN_ATTACKS = 80;
@@ -84,8 +82,8 @@ public class UsernameLoggerBlockEntity extends DisguisableBlockEntity implements
 	}
 
 	@Override
-	public void saveAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.saveAdditional(tag, lookupProvider);
+	public void saveAdditional(CompoundTag tag) {
+		super.saveAdditional(tag);
 
 		for (int i = 0; i < getPlayers().length; i++) {
 			tag.putString("player" + i, getPlayers()[i] == null ? "" : getPlayers()[i]);
@@ -95,8 +93,8 @@ public class UsernameLoggerBlockEntity extends DisguisableBlockEntity implements
 	}
 
 	@Override
-	public void loadAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.loadAdditional(tag, lookupProvider);
+	public void load(CompoundTag tag) {
+		super.load(tag);
 
 		for (int i = 0; i < getPlayers().length; i++) {
 			getPlayers()[i] = tag.getString("player" + i);
@@ -108,7 +106,7 @@ public class UsernameLoggerBlockEntity extends DisguisableBlockEntity implements
 	public void syncLoggedPlayersToClient() {
 		for (int i = 0; i < getPlayers().length; i++) {
 			if (getPlayers()[i] != null)
-				PacketDistributor.sendToPlayersTrackingChunk((ServerLevel) level, new ChunkPos(worldPosition), new UpdateLogger(worldPosition, i, getPlayers()[i], getUuids()[i], getTimestamps()[i]));
+				SecurityCraft.CHANNEL.send(PacketDistributor.TRACKING_CHUNK.with(() -> level.getChunkAt(worldPosition)), new UpdateLogger(worldPosition, i, getPlayers()[i], getUuids()[i], getTimestamps()[i]));
 		}
 	}
 

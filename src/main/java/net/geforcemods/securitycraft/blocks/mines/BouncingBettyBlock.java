@@ -142,7 +142,7 @@ public class BouncingBettyBlock extends ExplosiveBlock implements SimpleWaterlog
 	}
 
 	@Override
-	public ItemStack getCloneItemStack(LevelReader level, BlockPos pos, BlockState state) {
+	public ItemStack getCloneItemStack(BlockGetter level, BlockPos pos, BlockState state) {
 		return new ItemStack(asItem());
 	}
 

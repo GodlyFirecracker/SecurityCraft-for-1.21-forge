@@ -10,7 +10,6 @@ import net.geforcemods.securitycraft.api.Owner;
 import net.geforcemods.securitycraft.blockentities.DisguisableBlockEntity;
 import net.geforcemods.securitycraft.blocks.DisguisableBlock;
 import net.geforcemods.securitycraft.blocks.SometimesVisibleBlock;
-import net.geforcemods.securitycraft.components.ListModuleData;
 import net.geforcemods.securitycraft.items.ModuleItem;
 import net.geforcemods.securitycraft.misc.ModuleType;
 import net.geforcemods.securitycraft.misc.TargetingMode;
@@ -18,11 +17,11 @@ import net.geforcemods.securitycraft.util.PlayerUtils;
 import net.geforcemods.securitycraft.util.Utils;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.BlockSourceImpl;
 import net.minecraft.core.Direction;
-import net.minecraft.core.component.DataComponents;
-import net.minecraft.core.dispenser.BlockSource;
+import net.minecraft.core.UUIDUtil;
+import net.minecraft.core.dispenser.AbstractProjectileDispenseBehavior;
 import net.minecraft.core.dispenser.DispenseItemBehavior;
-import net.minecraft.core.dispenser.ProjectileDispenseBehavior;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
@@ -30,7 +29,6 @@ import net.minecraft.network.protocol.game.ClientboundAddEntityPacket;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
-import net.minecraft.server.level.ServerEntity;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
@@ -39,12 +37,14 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.PathfinderMob;
+import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.monster.RangedAttackMob;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.Projectile;
@@ -52,7 +52,6 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.context.UseOnContext;
-import net.minecraft.world.level.Explosion;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.block.Block;
@@ -66,12 +65,13 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.capabilities.Capabilities;
-import net.neoforged.neoforge.items.IItemHandler;
+import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.common.util.LazyOptional;
+import net.minecraftforge.items.IItemHandler;
 
 public class Sentry extends PathfinderMob implements RangedAttackMob, IEMPAffected, IOwnable { //needs to be a pathfinder mob so it can target a player, ai is also only given to living entities
 	private static final EntityDataAccessor<Owner> OWNER = SynchedEntityData.<Owner>defineId(Sentry.class, Owner.getSerializer());
-	private static final EntityDataAccessor<ItemStack> ALLOWLIST = SynchedEntityData.<ItemStack>defineId(Sentry.class, EntityDataSerializers.ITEM_STACK);
+	private static final EntityDataAccessor<CompoundTag> ALLOWLIST = SynchedEntityData.<CompoundTag>defineId(Sentry.class, EntityDataSerializers.COMPOUND_TAG);
 	private static final EntityDataAccessor<Boolean> HAS_SPEED_MODULE = SynchedEntityData.<Boolean>defineId(Sentry.class, EntityDataSerializers.BOOLEAN);
 	private static final EntityDataAccessor<Integer> MODE = SynchedEntityData.<Integer>defineId(Sentry.class, EntityDataSerializers.INT);
 	private static final EntityDataAccessor<Boolean> HAS_TARGET = SynchedEntityData.<Boolean>defineId(Sentry.class, EntityDataSerializers.BOOLEAN);
@@ -94,8 +94,8 @@ public class Sentry extends PathfinderMob implements RangedAttackMob, IEMPAffect
 	}
 
 	public void setUpSentry(Player player) {
-		entityData.set(OWNER, new Owner(player.getName().getString(), player.getGameProfile().getId().toString()));
-		entityData.set(ALLOWLIST, ItemStack.EMPTY);
+		entityData.set(OWNER, new Owner(player.getName().getString(), UUIDUtil.getOrCreatePlayerUUID(player.getGameProfile()).toString()));
+		entityData.set(ALLOWLIST, new CompoundTag());
 		entityData.set(HAS_SPEED_MODULE, false);
 		entityData.set(MODE, SentryMode.CAMOUFLAGE_HP.ordinal());
 		entityData.set(HAS_TARGET, false);
@@ -105,15 +105,15 @@ public class Sentry extends PathfinderMob implements RangedAttackMob, IEMPAffect
 	}
 
 	@Override
-	protected void defineSynchedData(SynchedEntityData.Builder builder) {
-		super.defineSynchedData(builder);
-		builder.define(OWNER, new Owner());
-		builder.define(ALLOWLIST, ItemStack.EMPTY);
-		builder.define(HAS_SPEED_MODULE, false);
-		builder.define(MODE, SentryMode.CAMOUFLAGE_HP.ordinal());
-		builder.define(HAS_TARGET, false);
-		builder.define(SHUT_DOWN, false);
-		builder.define(HEAD_ROTATION, 0.0F);
+	protected void defineSynchedData() {
+		super.defineSynchedData();
+		entityData.define(OWNER, new Owner());
+		entityData.define(ALLOWLIST, new CompoundTag());
+		entityData.define(HAS_SPEED_MODULE, false);
+		entityData.define(MODE, SentryMode.CAMOUFLAGE_HP.ordinal());
+		entityData.define(HAS_TARGET, false);
+		entityData.define(SHUT_DOWN, false);
+		entityData.define(HEAD_ROTATION, 0.0F);
 	}
 
 	@Override
@@ -195,7 +195,7 @@ public class Sentry extends PathfinderMob implements RangedAttackMob, IEMPAffect
 				kill();
 
 				if (!player.isCreative())
-					player.getMainHandItem().hurtAndBreak(1, player, LivingEntity.getSlotForHand(hand));
+					player.getMainHandItem().hurtAndBreak(1, player, p -> p.broadcastBreakEvent(hand));
 			}
 			else if (item == SCContent.DISGUISE_MODULE.get()) {
 				ItemStack module = getDisguiseModule();
@@ -237,7 +237,7 @@ public class Sentry extends PathfinderMob implements RangedAttackMob, IEMPAffect
 
 				getSentryDisguiseBlockEntity().ifPresent(be -> be.removeModule(ModuleType.DISGUISE, false));
 				level().setBlockAndUpdate(blockPosition(), level().getBlockState(blockPosition()).setValue(SometimesVisibleBlock.INVISIBLE, true));
-				entityData.set(ALLOWLIST, ItemStack.EMPTY);
+				entityData.set(ALLOWLIST, new CompoundTag());
 				entityData.set(HAS_SPEED_MODULE, false);
 			}
 			else if (item == SCContent.SENTRY_REMOTE_ACCESS_TOOL.get())
@@ -268,8 +268,10 @@ public class Sentry extends PathfinderMob implements RangedAttackMob, IEMPAffect
 		BlockPos pos = blockPosition();
 		ItemStack sentryStack = new ItemStack(SCContent.SENTRY.get());
 
+		if (hasCustomName())
+			sentryStack.setHoverName(getCustomName());
+
 		super.remove(reason);
-		sentryStack.set(DataComponents.CUSTOM_NAME, getCustomName());
 		Block.popResource(level(), pos, sentryStack);
 		Block.popResource(level(), pos, getDisguiseModule()); //if there is none, nothing will drop
 		Block.popResource(level(), pos, getAllowlistModule()); //if there is none, nothing will drop
@@ -327,6 +329,11 @@ public class Sentry extends PathfinderMob implements RangedAttackMob, IEMPAffect
 	}
 
 	@Override
+	public float getStandingEyeHeight(Pose pose, EntityDimensions dimensions) { //the sentry's eyes are higher so that it can see players even if it's inside a block when disguised - this also makes bullets spawn higher
+		return dimensions.height * 1.6F;
+	}
+
+	@Override
 	public void performRangedAttack(LivingEntity target, float distanceFactor) {
 		//don't shoot if somehow a non player is a target, or if the player is in spectator or creative mode
 		if (target instanceof Player player && (player.isSpectator() || player.isCreative()))
@@ -343,32 +350,28 @@ public class Sentry extends PathfinderMob implements RangedAttackMob, IEMPAffect
 		BlockEntity blockEntity = level.getBlockEntity(blockPosition().below());
 		Projectile throwableEntity = null;
 		SoundEvent shootSound = SoundEvents.ARROW_SHOOT;
-		ProjectileDispenseBehavior pdb = null;
-		IItemHandler handler = null;
-		double baseY = target.getY() + target.getEyeHeight() - 1.100000023841858D;
-		double x = target.getX() - getX();
-		double projectileY = getEyeHeight() - 0.1F;
-		double y = baseY - (getY() + projectileY);
-		double z = target.getZ() - getZ();
-		float yOffset = Mth.sqrt((float) (x * x + z * z)) * 0.2F;
+		AbstractProjectileDispenseBehavior pdb = null;
+		LazyOptional<IItemHandler> optional = LazyOptional.empty();
 
 		if (blockEntity instanceof ISentryBulletContainer be)
-			handler = be.getHandlerForSentry(this);
+			optional = be.getHandlerForSentry(this);
 		else if (blockEntity != null)
-			handler = level.getCapability(Capabilities.ItemHandler.BLOCK, blockEntity.getBlockPos(), blockEntity.getBlockState(), blockEntity, Direction.UP);
+			optional = blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER, Direction.UP);
 
-		if (handler != null) {
+		if (optional.isPresent()) {
+			IItemHandler handler = optional.orElse(null); //this is safe, because the presence was checked beforehand
+
 			for (int i = 0; i < handler.getSlots(); i++) {
 				ItemStack stack = handler.getStackInSlot(i);
 
 				if (!stack.isEmpty()) {
-					DispenseItemBehavior dispenseBehavior = ((DispenserBlock) Blocks.DISPENSER).getDispenseMethod(level, stack);
+					DispenseItemBehavior dispenseBehavior = ((DispenserBlock) Blocks.DISPENSER).getDispenseMethod(stack);
 
-					if (dispenseBehavior instanceof ProjectileDispenseBehavior projectileDispenseBehavior) {
+					if (dispenseBehavior instanceof AbstractProjectileDispenseBehavior projectileDispenseBehavior) {
 						ItemStack extracted = handler.extractItem(i, 1, false);
 
 						pdb = projectileDispenseBehavior;
-						throwableEntity = pdb.projectileItem.asProjectile(level, position().add(0.0D, projectileY, 0.0D), extracted, Direction.getNearest(x, y, z));
+						throwableEntity = pdb.getProjectile(level, position().add(0.0D, 1.6D, 0.0D), extracted);
 						throwableEntity.setOwner(this);
 						shootSound = null;
 						break;
@@ -380,12 +383,18 @@ public class Sentry extends PathfinderMob implements RangedAttackMob, IEMPAffect
 		if (throwableEntity == null)
 			throwableEntity = new Bullet(level, this);
 
+		double baseY = target.getY() + target.getEyeHeight() - 1.100000023841858D;
+		double x = target.getX() - getX();
+		double y = baseY - throwableEntity.getY();
+		double z = target.getZ() - getZ();
+		float yOffset = Mth.sqrt((float) (x * x + z * z)) * 0.2F;
+
 		entityData.set(HEAD_ROTATION, (float) (Mth.atan2(x, -z) * (180D / Math.PI)));
 		throwableEntity.shoot(x, y + yOffset, z, 1.6F, 0.0F); //no inaccuracy for sentries!
 
 		if (shootSound == null) {
 			if (!level.isClientSide && pdb != null)
-				pdb.playSound(new BlockSource((ServerLevel) level, blockPosition(), null, null)); //probably safe as long as playSound does not call the state and blockEntity methods.
+				pdb.playSound(new BlockSourceImpl((ServerLevel) level, blockPosition()));
 		}
 		else
 			playSound(shootSound, 1.0F, 1.0F / (getRandom().nextFloat() * 0.4F + 0.8F));
@@ -395,13 +404,8 @@ public class Sentry extends PathfinderMob implements RangedAttackMob, IEMPAffect
 
 	@Override
 	public void addAdditionalSaveData(CompoundTag tag) {
-		ItemStack allowlistModule = getAllowlistModule();
-
 		tag.put("TileEntityData", getOwnerTag());
-
-		if (!allowlistModule.isEmpty())
-			tag.put("InstalledWhitelist", allowlistModule.saveOptional(level().registryAccess()));
-
+		tag.put("InstalledWhitelist", getAllowlistModule().save(new CompoundTag()));
 		tag.putBoolean("HasSpeedModule", hasSpeedModule());
 		tag.putInt("SentryMode", entityData.get(MODE));
 		tag.putBoolean("HasTarget", hasTarget());
@@ -428,7 +432,7 @@ public class Sentry extends PathfinderMob implements RangedAttackMob, IEMPAffect
 		getSentryDisguiseBlockEntity().ifPresent(be -> {
 			//put the old module, if it exists, into the new disguise block
 			if (tag.contains("InstalledModule")) {
-				ItemStack module = Utils.parseOptional(level().registryAccess(), tag.getCompound("InstalledModule"));
+				ItemStack module = ItemStack.of(tag.getCompound("InstalledModule"));
 
 				if (!module.isEmpty() && module.getItem() instanceof ModuleItem && ModuleItem.getBlockAddon(module) != null) {
 					be.insertModule(module, false);
@@ -436,7 +440,7 @@ public class Sentry extends PathfinderMob implements RangedAttackMob, IEMPAffect
 				}
 			}
 		});
-		entityData.set(ALLOWLIST, Utils.parseOptional(level().registryAccess(), tag.getCompound("InstalledWhitelist")));
+		entityData.set(ALLOWLIST, tag.getCompound("InstalledWhitelist"));
 		entityData.set(HAS_SPEED_MODULE, tag.getBoolean("HasSpeedModule"));
 		entityData.set(MODE, tag.getInt("SentryMode"));
 		entityData.set(HAS_TARGET, tag.getBoolean("HasTarget"));
@@ -498,7 +502,7 @@ public class Sentry extends PathfinderMob implements RangedAttackMob, IEMPAffect
 	 * @param module The module to set
 	 */
 	public void setAllowlistModule(ItemStack module) {
-		entityData.set(ALLOWLIST, module);
+		entityData.set(ALLOWLIST, module.save(new CompoundTag()));
 	}
 
 	/**
@@ -526,7 +530,12 @@ public class Sentry extends PathfinderMob implements RangedAttackMob, IEMPAffect
 	 * @return The allowlist module that is added to this sentry. ItemStack.EMPTY if none available
 	 */
 	public ItemStack getAllowlistModule() {
-		return entityData.get(ALLOWLIST);
+		CompoundTag tag = entityData.get(ALLOWLIST);
+
+		if (tag == null || tag.isEmpty())
+			return ItemStack.EMPTY;
+		else
+			return ItemStack.of(tag);
 	}
 
 	public boolean hasSpeedModule() {
@@ -579,10 +588,19 @@ public class Sentry extends PathfinderMob implements RangedAttackMob, IEMPAffect
 
 	public boolean isTargetingAllowedPlayer(LivingEntity potentialTarget) {
 		if (potentialTarget != null) {
-			ListModuleData listModuleData = getAllowlistModule().get(SCContent.LIST_MODULE_DATA);
-			String targetName = potentialTarget.getName().getString();
+			ItemStack allowlistModule = getAllowlistModule();
 
-			return listModuleData != null && (listModuleData.affectEveryone() || listModuleData.isPlayerOnList(targetName) || listModuleData.isTeamOfPlayerOnList(level(), targetName));
+			if (allowlistModule.hasTag() && allowlistModule.getTag().getBoolean("affectEveryone"))
+				return true;
+
+			List<String> players = ModuleItem.getPlayersFromModule(allowlistModule);
+
+			for (String s : players) {
+				if (potentialTarget.getName().getString().equalsIgnoreCase(s))
+					return true;
+			}
+
+			return ModuleItem.doesModuleHaveTeamOf(allowlistModule, potentialTarget.getName().getString(), level());
 		}
 
 		return false;
@@ -665,7 +683,7 @@ public class Sentry extends PathfinderMob implements RangedAttackMob, IEMPAffect
 	protected void pushEntities() {}
 
 	@Override
-	public boolean ignoreExplosion(Explosion explosion) {
+	public boolean ignoreExplosion() {
 		return true; //does not get pushed around by explosions
 	}
 
@@ -685,13 +703,11 @@ public class Sentry extends PathfinderMob implements RangedAttackMob, IEMPAffect
 	}
 
 	@Override
-	public boolean canBeLeashed() { //no leashing for sentry
-		return false;
-	}
+	public void tickLeash() {} //no leashing for sentry
 
 	@Override
-	public Packet<ClientGamePacketListener> getAddEntityPacket(ServerEntity serverEntity) {
-		return new ClientboundAddEntityPacket(this, serverEntity);
+	public Packet<ClientGamePacketListener> getAddEntityPacket() {
+		return new ClientboundAddEntityPacket(this);
 	}
 
 	public void setAnimateUpwards(boolean animateUpwards) {

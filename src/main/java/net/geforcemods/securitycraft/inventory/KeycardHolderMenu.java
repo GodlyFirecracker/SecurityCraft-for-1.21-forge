@@ -1,8 +1,8 @@
 package net.geforcemods.securitycraft.inventory;
 
 import net.geforcemods.securitycraft.SCContent;
+import net.geforcemods.securitycraft.SCTags;
 import net.geforcemods.securitycraft.items.KeycardHolderItem;
-import net.geforcemods.securitycraft.items.KeycardItem;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -12,18 +12,15 @@ import net.minecraft.world.item.ItemStack;
 
 public class KeycardHolderMenu extends AbstractContainerMenu {
 	public static final int CONTAINER_SIZE = 5;
-	private final ItemContainer keycardHolderInv;
 
 	public KeycardHolderMenu(int id, Inventory playerInventory, ItemContainer keycardHolderInv) {
 		super(SCContent.KEYCARD_HOLDER_MENU.get(), id);
-
-		this.keycardHolderInv = keycardHolderInv;
 
 		for (int i = 0; i < CONTAINER_SIZE; i++) {
 			addSlot(new Slot(keycardHolderInv, i, 44 + (i * 18), 20) {
 				@Override
 				public boolean mayPlace(ItemStack stack) {
-					return stack.getItem() instanceof KeycardItem;
+					return stack.is(SCTags.Items.KEYCARD_HOLDER_CAN_HOLD);
 				}
 			});
 		}
@@ -80,10 +77,5 @@ public class KeycardHolderMenu extends AbstractContainerMenu {
 	@Override
 	public boolean stillValid(Player player) {
 		return true;
-	}
-
-	@Override
-	public void removed(Player player) {
-		keycardHolderInv.stopOpen(player);
 	}
 }

@@ -1,0 +1,25 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "G": {
+      "tag": "forge:gunpowder"
+    },
+    "I": {
+      "tag": "forge:ingots/iron"
+    },
+    "S": {
+      "tag": "forge:rods/wooden"
+    }
+  },
+  "pattern": [
+    "I I",
+    "ISI",
+    "IGI"
+  ],
+  "result": {
+    "count": 6,
+    "item": "securitycraft:track_mine"
+  },
+  "show_notification": true
+}

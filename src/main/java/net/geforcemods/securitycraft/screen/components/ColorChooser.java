@@ -22,14 +22,10 @@ import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
-import net.neoforged.neoforge.client.gui.widget.ExtendedSlider;
+import net.minecraftforge.client.gui.widget.ForgeSlider;
 
 public class ColorChooser extends Screen implements GuiEventListener, NarratableEntry {
-	private static final ResourceLocation TEXTURE = SecurityCraft.resLoc("textures/gui/container/color_chooser.png");
-	private static final ResourceLocation HUE_SLIDER_SPRITE = SecurityCraft.resLoc("widget/color_chooser/hue_slider");
-	private static final ResourceLocation HUE_SLIDER_HIGHLIGHTED_SPRITE = SecurityCraft.resLoc("widget/color_chooser/hue_slider_highlighted");
-	private static final ResourceLocation FIELD_SELECTOR_SPRITE = SecurityCraft.resLoc("widget/color_chooser/field_selector");
-	private static final ResourceLocation FIELD_SELECTOR_HIGHLIGHTED_SPRITE = SecurityCraft.resLoc("widget/color_chooser/field_selector_highlighted");
+	private static final ResourceLocation TEXTURE = new ResourceLocation(SecurityCraft.MODID, "textures/gui/container/color_chooser.png");
 	private static final int COLOR_FIELD_SIZE = 75;
 	protected boolean disabled = true;
 	private final int xStart, yStart;
@@ -129,20 +125,16 @@ public class ColorChooser extends Screen implements GuiEventListener, Narratable
 	@Override
 	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
 		if (!disabled) {
+			guiGraphics.blit(TEXTURE, xStart, yStart, 0, 0, 145, 109);
+			ClientUtils.fillHorizontalGradient(guiGraphics, 0, colorFieldLeft, colorFieldTop, colorFieldRight + 1, colorFieldBottom + 1, 0xFFFFFFFF, ClientUtils.HSBtoRGB(h, 1.0F, 1.0F));
+			guiGraphics.fillGradient(colorFieldLeft, colorFieldTop, colorFieldRight + 1, colorFieldBottom + 1, 0x00000000, 0xFF000000);
+			guiGraphics.blit(TEXTURE, (int) selectionX - 1, (int) selectionY - 1, colorFieldHoverChecker.checkHover(mouseX, mouseY) ? 148 : 145, 20, 3, 3); //color field indicator
 			super.render(guiGraphics, mouseX, mouseY, partialTick);
-			guiGraphics.blitSprite(colorFieldHoverChecker.checkHover(mouseX, mouseY) ? FIELD_SELECTOR_HIGHLIGHTED_SPRITE : FIELD_SELECTOR_SPRITE, (int) selectionX - 1, (int) selectionY - 1, 3, 3); //color field indicator
 			guiGraphics.drawString(font, rText, colorFieldRight + 5, colorFieldTop + 1, 0x404040, false);
 			guiGraphics.drawString(font, gText, colorFieldRight + 5, colorFieldTop + 16, 0x404040, false);
 			guiGraphics.drawString(font, bText, colorFieldRight + 5, colorFieldTop + 31, 0x404040, false);
 			guiGraphics.drawString(font, rgbHexText, colorFieldRight + 5, colorFieldTop + 46, 0x404040, false);
 		}
-	}
-
-	@Override
-	public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-		guiGraphics.blit(TEXTURE, xStart, yStart, 0, 0, 145, 109);
-		ClientUtils.fillHorizontalGradient(guiGraphics, 0, colorFieldLeft, colorFieldTop, colorFieldRight + 1, colorFieldBottom + 1, 0xFFFFFFFF, ClientUtils.HSBtoRGB(h, 1.0F, 1.0F));
-		guiGraphics.fillGradient(colorFieldLeft, colorFieldTop, colorFieldRight + 1, colorFieldBottom + 1, 0x00000000, 0xFF000000);
 	}
 
 	@Override
@@ -268,14 +260,14 @@ public class ColorChooser extends Screen implements GuiEventListener, Narratable
 		return rgbHexBox;
 	}
 
-	class HueSlider extends ExtendedSlider {
+	class HueSlider extends ForgeSlider {
 		public HueSlider(int x, int y, int width, int height, double currentValue) {
 			super(x, y, width, height, Component.empty(), Component.empty(), 0.0D, 360.0D, currentValue, 1.0D, 0, false);
 		}
 
 		@Override
 		public void renderWidget(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-			guiGraphics.blitSprite(isHoveredOrFocused() ? HUE_SLIDER_HIGHLIGHTED_SPRITE : HUE_SLIDER_SPRITE, getX() + (int) (value * (width - 8)), getY(), 6, height);
+			guiGraphics.blit(TEXTURE, getX() + (int) (value * (width - 8)), getY(), isHoveredOrFocused() ? 151 : 145, 0, 6, height);
 		}
 	}
 

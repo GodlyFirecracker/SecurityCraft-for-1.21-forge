@@ -37,13 +37,10 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
-import net.neoforged.neoforge.client.gui.widget.ScrollPanel;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraftforge.client.gui.widget.ScrollPanel;
 
 public class AlarmScreen extends Screen {
-	private static final ResourceLocation GUI_TEXTURE = SecurityCraft.resLoc("textures/gui/container/alarm.png");
-	private static final ResourceLocation PLAY_SOUND_SPRITE = SecurityCraft.resLoc("alarm/play_sound");
-	private static final ResourceLocation PLAY_SOUND_HIGHLIGHTED_SPRITE = SecurityCraft.resLoc("alarm/play_sound_highlighted");
+	private static final ResourceLocation GUI_TEXTURE = new ResourceLocation(SecurityCraft.MODID, "textures/gui/container/alarm.png");
 	protected final AlarmBlockEntity be;
 	private final boolean hasSmartModule;
 	private final Component smartModuleTooltip;
@@ -88,17 +85,14 @@ public class AlarmScreen extends Screen {
 
 	@Override
 	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
+		renderBackground(guiGraphics);
+		RenderSystem._setShaderTexture(0, GUI_TEXTURE);
+		guiGraphics.blit(GUI_TEXTURE, leftPos, topPos, 0, 0, imageWidth, imageHeight);
 		super.render(guiGraphics, mouseX, mouseY, partialTicks);
 		guiGraphics.drawString(font, title, width / 2 - font.width(title) / 2, topPos + 6, 4210752, false);
 		guiGraphics.drawString(font, currentlySelectedText, width / 2 - font.width(currentlySelectedText) / 2, topPos + imageHeight - 62, 4210752, false);
 		guiGraphics.drawString(font, selectedSoundEventText, width / 2 - font.width(selectedSoundEventText) / 2, topPos + imageHeight - 49, 4210752, false);
 		ClientUtils.renderModuleInfo(guiGraphics, font, ModuleType.SMART, smartModuleTooltip, hasSmartModule, leftPos + 5, topPos + 5, mouseX, mouseY);
-	}
-
-	@Override
-	public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-		renderTransparentBackground(guiGraphics);
-		guiGraphics.blit(GUI_TEXTURE, leftPos, topPos, 0, 0, imageWidth, imageHeight);
 	}
 
 	public void selectSound(ResourceLocation eventId) {
@@ -131,7 +125,7 @@ public class AlarmScreen extends Screen {
 		}
 
 		if (changed)
-			PacketDistributor.sendToServer(new SyncAlarmSettings(be.getBlockPos(), selectedSoundEvent, pitch, soundLength));
+			SecurityCraft.CHANNEL.sendToServer(new SyncAlarmSettings(be.getBlockPos(), selectedSoundEvent, pitch, soundLength));
 	}
 
 	@Override
@@ -199,11 +193,6 @@ public class AlarmScreen extends Screen {
 		}
 
 		@Override
-		protected void drawBackground(GuiGraphics guiGraphics, Tesselator tess, float partialTick) {
-			drawGradientRect(guiGraphics, left, top, right, bottom, 0xC0101010, 0xD0101010);
-		}
-
-		@Override
 		public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
 			super.render(guiGraphics, mouseX, mouseY, partialTick);
 
@@ -249,7 +238,7 @@ public class AlarmScreen extends Screen {
 				Component name = getSoundEventComponent(soundEvent);
 
 				guiGraphics.drawString(font, name, left + TEXT_OFFSET, yStart, 0xC6C6C6, false);
-				guiGraphics.blitSprite(i == slotIndex && mouseX >= left && mouseX < min && mouseY >= top && mouseY <= bottom ? PLAY_SOUND_HIGHLIGHTED_SPRITE : PLAY_SOUND_SPRITE, left, yStart - 1, 10, 10);
+				guiGraphics.blit(GUI_TEXTURE, left, yStart - 1, 0, i == slotIndex && mouseX >= left && mouseX < min && mouseY >= top && mouseY <= bottom ? 9 : 0, 246, 10, 10, 256, 256);
 			}
 		}
 
@@ -260,20 +249,20 @@ public class AlarmScreen extends Screen {
 		private void renderHighlightBox(int entryRight, Tesselator tesselator, int baseY, int slotBuffer, int slotIndex, int min) {
 			int max = entryRight - 6;
 			int slotTop = baseY + slotIndex * SLOT_HEIGHT;
-			BufferBuilder bufferBuilder;
+			BufferBuilder bufferBuilder = tesselator.getBuilder();
 
 			RenderSystem.enableBlend();
 			RenderSystem.defaultBlendFunc();
-			bufferBuilder = tesselator.begin(Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
-			bufferBuilder.addVertex(min, slotTop + slotBuffer + 2, 0).setColor(0x80, 0x80, 0x80, 0xFF);
-			bufferBuilder.addVertex(max, slotTop + slotBuffer + 2, 0).setColor(0x80, 0x80, 0x80, 0xFF);
-			bufferBuilder.addVertex(max, slotTop - 2, 0).setColor(0x80, 0x80, 0x80, 0xFF);
-			bufferBuilder.addVertex(min, slotTop - 2, 0).setColor(0x80, 0x80, 0x80, 0xFF);
-			bufferBuilder.addVertex(min + 1, slotTop + slotBuffer + 1, 0).setColor(0x00, 0x00, 0x00, 0xFF);
-			bufferBuilder.addVertex(max - 1, slotTop + slotBuffer + 1, 0).setColor(0x00, 0x00, 0x00, 0xFF);
-			bufferBuilder.addVertex(max - 1, slotTop - 1, 0).setColor(0x00, 0x00, 0x00, 0xFF);
-			bufferBuilder.addVertex(min + 1, slotTop - 1, 0).setColor(0x00, 0x00, 0x00, 0xFF);
-			BufferUploader.drawWithShader(bufferBuilder.buildOrThrow());
+			bufferBuilder.begin(Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+			bufferBuilder.vertex(min, slotTop + slotBuffer + 2, 0).color(0x80, 0x80, 0x80, 0xFF).endVertex();
+			bufferBuilder.vertex(max, slotTop + slotBuffer + 2, 0).color(0x80, 0x80, 0x80, 0xFF).endVertex();
+			bufferBuilder.vertex(max, slotTop - 2, 0).color(0x80, 0x80, 0x80, 0xFF).endVertex();
+			bufferBuilder.vertex(min, slotTop - 2, 0).color(0x80, 0x80, 0x80, 0xFF).endVertex();
+			bufferBuilder.vertex(min + 1, slotTop + slotBuffer + 1, 0).color(0x00, 0x00, 0x00, 0xFF).endVertex();
+			bufferBuilder.vertex(max - 1, slotTop + slotBuffer + 1, 0).color(0x00, 0x00, 0x00, 0xFF).endVertex();
+			bufferBuilder.vertex(max - 1, slotTop - 1, 0).color(0x00, 0x00, 0x00, 0xFF).endVertex();
+			bufferBuilder.vertex(min + 1, slotTop - 1, 0).color(0x00, 0x00, 0x00, 0xFF).endVertex();
+			BufferUploader.drawWithShader(bufferBuilder.end());
 			RenderSystem.disableBlend();
 		}
 

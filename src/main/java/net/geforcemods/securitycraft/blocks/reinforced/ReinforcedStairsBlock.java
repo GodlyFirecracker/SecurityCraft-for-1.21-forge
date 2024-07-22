@@ -3,13 +3,21 @@ package net.geforcemods.securitycraft.blocks.reinforced;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
-import net.geforcemods.securitycraft.SCContent;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.Explosion;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.HorizontalDirectionalBlock;
 import net.minecraft.world.level.block.Mirror;
 import net.minecraft.world.level.block.Rotation;
@@ -27,6 +35,7 @@ import net.minecraft.world.level.block.state.properties.StairsShape;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.level.pathfinder.PathComputationType;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
@@ -52,20 +61,18 @@ public class ReinforcedStairsBlock extends BaseReinforcedBlock implements Simple
 			12, 5, 3, 10, 14, 13, 7, 11, 13, 7, 11, 14, 8, 4, 1, 2, 4, 1, 2, 8
 	};
 	private final Block modelBlock;
-
-	public ReinforcedStairsBlock(Block vB) {
-		this(SCContent.reinforcedCopy(vB), () -> vB);
-	}
+	private final BlockState modelState;
 
 	public ReinforcedStairsBlock(BlockBehaviour.Properties properties, Block vB) {
 		this(properties, () -> vB);
 	}
 
-	public ReinforcedStairsBlock(BlockBehaviour.Properties properties, Supplier<? extends Block> vB) {
+	public ReinforcedStairsBlock(BlockBehaviour.Properties properties, Supplier<Block> vB) {
 		super(properties, vB);
 
 		registerDefaultState(stateDefinition.any().setValue(FACING, Direction.NORTH).setValue(HALF, Half.BOTTOM).setValue(SHAPE, StairsShape.STRAIGHT).setValue(WATERLOGGED, false));
 		modelBlock = getVanillaBlock();
+		modelState = modelBlock.defaultBlockState();
 	}
 
 	private static VoxelShape[] makeShapes(VoxelShape slabShape, VoxelShape nwCorner, VoxelShape neCorner, VoxelShape swCorner, VoxelShape seCorner) {
@@ -105,8 +112,54 @@ public class ReinforcedStairsBlock extends BaseReinforcedBlock implements Simple
 	}
 
 	@Override
-	public float getExplosionResistance() {
-		return modelBlock.getExplosionResistance();
+	public void animateTick(BlockState state, Level level, BlockPos pos, RandomSource rand) {
+		modelBlock.animateTick(state, level, pos, rand);
+	}
+
+	@Override
+	public void attack(BlockState state, Level level, BlockPos pos, Player player) {
+		modelState.attack(level, pos, player);
+	}
+
+	@Override
+	public void destroy(LevelAccessor level, BlockPos pos, BlockState state) {
+		modelBlock.destroy(level, pos, state);
+	}
+
+	@Override
+	public void onPlace(BlockState state, Level level, BlockPos pos, BlockState oldState, boolean isMoving) {
+		if (state.getBlock() != oldState.getBlock()) {
+			modelState.neighborChanged(level, pos, Blocks.AIR, pos, false);
+			modelBlock.onPlace(modelState, level, pos, oldState, false);
+		}
+	}
+
+	@Override
+	public void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean isMoving) {
+		if (state.getBlock() != newState.getBlock())
+			modelState.onRemove(level, pos, newState, isMoving);
+
+		super.onRemove(state, level, pos, newState, isMoving);
+	}
+
+	@Override
+	public void stepOn(Level level, BlockPos pos, BlockState state, Entity entity) {
+		modelBlock.stepOn(level, pos, state, entity);
+	}
+
+	@Override
+	public void tick(BlockState state, ServerLevel level, BlockPos pos, RandomSource random) {
+		modelState.tick(level, pos, random);
+	}
+
+	@Override
+	public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
+		return modelState.use(level, player, hand, hit);
+	}
+
+	@Override
+	public void wasExploded(Level level, BlockPos pos, Explosion explosion) {
+		modelBlock.wasExploded(level, pos, explosion);
 	}
 
 	@Override
@@ -219,7 +272,7 @@ public class ReinforcedStairsBlock extends BaseReinforcedBlock implements Simple
 	}
 
 	@Override
-	public boolean isPathfindable(BlockState state, PathComputationType type) {
+	public boolean isPathfindable(BlockState state, BlockGetter level, BlockPos pos, PathComputationType type) {
 		return false;
 	}
 }

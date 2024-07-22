@@ -77,6 +77,6 @@ public class SCJEIPlugin implements IModPlugin {
 
 	@Override
 	public ResourceLocation getPluginUid() {
-		return SecurityCraft.resLoc(SecurityCraft.MODID);
+		return new ResourceLocation(SecurityCraft.MODID, SecurityCraft.MODID);
 	}
 }

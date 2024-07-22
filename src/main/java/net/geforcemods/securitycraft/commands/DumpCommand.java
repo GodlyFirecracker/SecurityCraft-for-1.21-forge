@@ -18,8 +18,8 @@ import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
-import net.neoforged.neoforge.registries.DeferredHolder;
-import net.neoforged.neoforge.registries.DeferredRegister;
+import net.minecraftforge.registries.DeferredRegister;
+import net.minecraftforge.registries.RegistryObject;
 
 public class DumpCommand {
 	private static final DynamicCommandExceptionType ERROR_REGISTRY_NOT_FOUND = new DynamicCommandExceptionType(registry -> Component.translatableWithFallback("commands.securitycraft.dump.notFound", "SecurityCraft has nothing registered to \"%s\".", registry));
@@ -27,13 +27,11 @@ public class DumpCommand {
 		Map<String, DeferredRegister<?>> map = new Object2ObjectArrayMap<>();
 
 		for (Field field : SCContent.class.getFields()) {
+			if (field.getType() != DeferredRegister.class)
+				return map;
+
 			try {
-				Object object = field.get(null);
-
-				if (!(object instanceof DeferredRegister))
-					return map;
-
-				map.put(field.getName().toLowerCase(Locale.ROOT), (DeferredRegister<?>) object);
+				map.put(field.getName().toLowerCase(Locale.ROOT), (DeferredRegister<?>) field.get(null));
 			}
 			catch (IllegalArgumentException | IllegalAccessException e) {
 				e.printStackTrace();
@@ -62,7 +60,7 @@ public class DumpCommand {
 							final var registryObjects = REGISTRIES.get(registry).getEntries();
 							String result = "";
 
-							for (DeferredHolder<?, ?> ro : registryObjects) {
+							for (RegistryObject<?> ro : registryObjects) {
 								result += ro.getId().toString() + lineSeparator;
 							}
 

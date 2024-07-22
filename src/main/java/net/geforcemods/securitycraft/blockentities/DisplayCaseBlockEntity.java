@@ -19,7 +19,6 @@ import net.geforcemods.securitycraft.util.ITickingBlockEntity;
 import net.geforcemods.securitycraft.util.PasscodeUtils;
 import net.geforcemods.securitycraft.util.Utils;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
@@ -28,8 +27,10 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 
 public class DisplayCaseBlockEntity extends CustomizableBlockEntity implements ITickingBlockEntity, IPasscodeProtected, ILockable {
+	private final AABB renderBoundingBox;
 	private BooleanOption sendAllowlistMessage = new SendAllowlistMessageOption(false);
 	private BooleanOption sendDenylistMessage = new SendDenylistMessageOption(true);
 	private DisabledOption disabled = new DisabledOption(false);
@@ -49,6 +50,7 @@ public class DisplayCaseBlockEntity extends CustomizableBlockEntity implements I
 
 	public DisplayCaseBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
 		super(type, pos, state);
+		renderBoundingBox = new AABB(pos);
 	}
 
 	@Override
@@ -99,14 +101,11 @@ public class DisplayCaseBlockEntity extends CustomizableBlockEntity implements I
 	}
 
 	@Override
-	public void saveAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
+	public void saveAdditional(CompoundTag tag) {
 		long cooldownLeft;
 
-		super.saveAdditional(tag, lookupProvider);
-
-		if (!displayedStack.isEmpty())
-			tag.put("DisplayedStack", displayedStack.saveOptional(lookupProvider));
-
+		super.saveAdditional(tag);
+		tag.put("DisplayedStack", getDisplayedStack().save(new CompoundTag()));
 		tag.putBoolean("ShouldBeOpen", shouldBeOpen);
 		cooldownLeft = getCooldownEnd() - System.currentTimeMillis();
 		tag.putLong("cooldownLeft", cooldownLeft <= 0 ? -1 : cooldownLeft);
@@ -119,15 +118,15 @@ public class DisplayCaseBlockEntity extends CustomizableBlockEntity implements I
 	}
 
 	@Override
-	public void loadAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.loadAdditional(tag, lookupProvider);
-		setDisplayedStack(Utils.parseOptional(lookupProvider, tag.getCompound("DisplayedStack")));
+	public void load(CompoundTag tag) {
+		super.load(tag);
+		setDisplayedStack(ItemStack.of((CompoundTag) tag.get("DisplayedStack")));
 		shouldBeOpen = tag.getBoolean("ShouldBeOpen");
 		cooldownEnd = System.currentTimeMillis() + tag.getLong("cooldownLeft");
 		loadSaltKey(tag);
 		loadPasscode(tag);
 
-		if (level != null && level.isClientSide && !hasReceivedData) { //Skip opening animation when the display case is first loaded on the client
+		if (level != null && level.isClientSide && !hasReceivedData) {
 			forceOpen(shouldBeOpen);
 			hasReceivedData = true;
 		}
@@ -217,5 +216,10 @@ public class DisplayCaseBlockEntity extends CustomizableBlockEntity implements I
 			setChanged();
 			level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 2);
 		}
+	}
+
+	@Override
+	public AABB getRenderBoundingBox() {
+		return renderBoundingBox;
 	}
 }

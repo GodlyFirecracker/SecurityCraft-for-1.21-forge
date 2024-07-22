@@ -16,10 +16,9 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 public class SetPasscodeScreen extends Screen {
-	private static final ResourceLocation TEXTURE = SecurityCraft.resLoc("textures/gui/container/blank.png");
+	private static final ResourceLocation TEXTURE = new ResourceLocation("securitycraft:textures/gui/container/blank.png");
 	private int imageWidth = 176;
 	private int imageHeight = 166;
 	private int leftPos;
@@ -55,6 +54,8 @@ public class SetPasscodeScreen extends Screen {
 
 	@Override
 	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
+		renderBackground(guiGraphics);
+		guiGraphics.blit(TEXTURE, leftPos, topPos, 0, 0, imageWidth, imageHeight);
 		super.render(guiGraphics, mouseX, mouseY, partialTicks);
 		guiGraphics.drawString(font, "CODE:", width / 2 - 67, height / 2 - 47 + 2, 4210752);
 
@@ -64,12 +65,6 @@ public class SetPasscodeScreen extends Screen {
 			guiGraphics.drawString(font, title, width / 2 - font.width(title) / 2, topPos + 6, 4210752, false);
 			guiGraphics.drawString(font, setup, width / 2 - font.width(setup) / 2, topPos + 16, 4210752, false);
 		}
-	}
-
-	@Override
-	public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-		renderTransparentBackground(guiGraphics);
-		guiGraphics.blit(TEXTURE, leftPos, topPos, 0, 0, imageWidth, imageHeight);
 	}
 
 	@Override
@@ -89,9 +84,9 @@ public class SetPasscodeScreen extends Screen {
 
 	private void saveAndContinueButtonClicked(Button button) {
 		if (passcodeProtected instanceof BlockEntity be)
-			PacketDistributor.sendToServer(new SetPasscode(be.getBlockPos(), keycodeTextbox.getValue()));
+			SecurityCraft.CHANNEL.sendToServer(new SetPasscode(be.getBlockPos(), keycodeTextbox.getValue()));
 		else if (passcodeProtected instanceof Entity entity)
-			PacketDistributor.sendToServer(new SetPasscode(entity.getId(), keycodeTextbox.getValue()));
+			SecurityCraft.CHANNEL.sendToServer(new SetPasscode(entity.getId(), keycodeTextbox.getValue()));
 
 		Minecraft.getInstance().player.closeContainer();
 	}

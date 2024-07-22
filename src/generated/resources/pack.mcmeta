@@ -1,10 +1,8 @@
 {
   "pack": {
-    "description": "SecurityCraft resources & data",
-    "pack_format": 34,
-    "supported_formats": [
-      0,
-      2147483647
-    ]
+    "description": {
+      "text": "SecurityCraft resources & data"
+    },
+    "pack_format": 15
   }
 }

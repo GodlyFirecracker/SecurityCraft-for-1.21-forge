@@ -4,7 +4,6 @@ import java.util.function.Supplier;
 
 import javax.annotation.Nullable;
 
-import net.geforcemods.securitycraft.SCContent;
 import net.geforcemods.securitycraft.api.IOwnable;
 import net.geforcemods.securitycraft.util.PlayerUtils;
 import net.geforcemods.securitycraft.util.Utils;
@@ -12,7 +11,6 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.tags.FluidTags;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
@@ -42,15 +40,11 @@ public class ReinforcedSlabBlock extends BaseReinforcedBlock implements SimpleWa
 	protected static final VoxelShape BOTTOM_SHAPE = Block.box(0.0D, 0.0D, 0.0D, 16.0D, 8.0D, 16.0D);
 	protected static final VoxelShape TOP_SHAPE = Block.box(0.0D, 8.0D, 0.0D, 16.0D, 16.0D, 16.0D);
 
-	public ReinforcedSlabBlock(Block vB) {
-		this(SCContent.reinforcedCopy(vB), () -> vB);
-	}
-
 	public ReinforcedSlabBlock(BlockBehaviour.Properties properties, Block vB) {
 		this(properties, () -> vB);
 	}
 
-	public ReinforcedSlabBlock(BlockBehaviour.Properties properties, Supplier<? extends Block> vB) {
+	public ReinforcedSlabBlock(BlockBehaviour.Properties properties, Supplier<Block> vB) {
 		super(properties, vB);
 		registerDefaultState(stateDefinition.any().setValue(TYPE, SlabType.BOTTOM).setValue(WATERLOGGED, false));
 	}
@@ -133,8 +127,8 @@ public class ReinforcedSlabBlock extends BaseReinforcedBlock implements SimpleWa
 	}
 
 	@Override
-	public boolean canPlaceLiquid(Player player, BlockGetter level, BlockPos pos, BlockState state, Fluid fluid) {
-		return state.getValue(TYPE) != SlabType.DOUBLE && SimpleWaterloggedBlock.super.canPlaceLiquid(player, level, pos, state, fluid);
+	public boolean canPlaceLiquid(BlockGetter level, BlockPos pos, BlockState state, Fluid fluid) {
+		return state.getValue(TYPE) != SlabType.DOUBLE && SimpleWaterloggedBlock.super.canPlaceLiquid(level, pos, state, fluid);
 	}
 
 	@Override
@@ -146,10 +140,10 @@ public class ReinforcedSlabBlock extends BaseReinforcedBlock implements SimpleWa
 	}
 
 	@Override
-	public boolean isPathfindable(BlockState state, PathComputationType type) {
+	public boolean isPathfindable(BlockState state, BlockGetter level, BlockPos pos, PathComputationType type) {
 		return switch (type) {
 			case LAND -> false;
-			case WATER -> state.getFluidState().is(FluidTags.WATER);
+			case WATER -> level.getFluidState(pos).is(FluidTags.WATER);
 			case AIR -> false;
 			default -> false;
 		};

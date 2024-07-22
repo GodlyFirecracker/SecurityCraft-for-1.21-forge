@@ -20,6 +20,7 @@ import net.minecraft.world.level.block.FungusBlock;
 import net.minecraft.world.level.block.HalfTransparentBlock;
 import net.minecraft.world.level.block.MangrovePropaguleBlock;
 import net.minecraft.world.level.block.NetherSproutsBlock;
+import net.minecraft.world.level.block.NetherWartBlock;
 import net.minecraft.world.level.block.RootsBlock;
 import net.minecraft.world.level.block.WaterlilyBlock;
 import net.minecraft.world.level.block.WitherRoseBlock;
@@ -28,10 +29,11 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.feature.configurations.TreeConfiguration;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.material.Fluids;
-import net.neoforged.neoforge.common.util.TriState;
+import net.minecraftforge.common.IPlantable;
+import net.minecraftforge.common.PlantType;
 
 public class BaseReinforcedBlock extends OwnableBlock implements IReinforcedBlock {
-	private final Supplier<? extends Block> vanillaBlockSupplier;
+	private final Supplier<Block> vanillaBlockSupplier;
 
 	public BaseReinforcedBlock(Block vB) {
 		this(SCContent.reinforcedCopy(vB), () -> vB);
@@ -41,52 +43,64 @@ public class BaseReinforcedBlock extends OwnableBlock implements IReinforcedBloc
 		this(properties, () -> vB);
 	}
 
-	public BaseReinforcedBlock(BlockBehaviour.Properties properties, Supplier<? extends Block> vB) {
+	public BaseReinforcedBlock(BlockBehaviour.Properties properties, Supplier<Block> vB) {
 		super(properties);
 
 		vanillaBlockSupplier = vB;
 	}
 
 	@Override
-	public TriState canSustainPlant(BlockState soilState, BlockGetter level, BlockPos soilPos, Direction facing, BlockState plant) {
-		Block plantable = plant.getBlock();
+	public boolean canSustainPlant(BlockState state, BlockGetter level, BlockPos pos, Direction facing, IPlantable plantable) {
+		BlockState plant = plantable.getPlant(level, pos.relative(facing));
+		PlantType type = plantable.getPlantType(level, pos.relative(facing));
 
-		if (plant.is(Blocks.CACTUS))
-			return soilState.is(SCTags.Blocks.REINFORCED_SAND) ? TriState.TRUE : TriState.FALSE;
-		else if (plantable instanceof BushBlock) { //a nasty workaround because BaseReinforcedBlock can't use BushBlock#mayPlaceOn because it is protected
+		if (super.canSustainPlant(state, level, pos, facing, plantable))
+			return true;
+
+		if (plant.getBlock() == Blocks.CACTUS)
+			return state.is(SCTags.Blocks.REINFORCED_SAND);
+
+		if (plantable instanceof BushBlock) { //a nasty workaround because BaseReinforcedBlock can't use BushBlock#mayPlaceOn because it is protected
 			boolean condition = false;
 
 			if (plantable instanceof AzaleaBlock || plantable instanceof MangrovePropaguleBlock)
-				condition = soilState.is(SCContent.REINFORCED_CLAY.get()) || soilState.is(SCTags.Blocks.REINFORCED_DIRT);
+				condition = state.is(SCContent.REINFORCED_CLAY.get()) || state.is(SCTags.Blocks.REINFORCED_DIRT);
 			else if (plantable instanceof FungusBlock || plantable instanceof NetherSproutsBlock || plantable instanceof RootsBlock)
-				condition = soilState.is(SCContent.REINFORCED_SOUL_SOIL.get()) || soilState.is(SCTags.Blocks.REINFORCED_DIRT);
+				condition = state.is(SCContent.REINFORCED_SOUL_SOIL.get()) || state.is(SCTags.Blocks.REINFORCED_DIRT);
 			else if (plantable instanceof WaterlilyBlock)
-				condition = level.getFluidState(soilPos).getType() == SCContent.FAKE_WATER.get() && level.getFluidState(soilPos.above()).getType() == Fluids.EMPTY;
+				condition = level.getFluidState(pos).getType() == SCContent.FAKE_WATER.get() && level.getFluidState(pos.above()).getType() == Fluids.EMPTY;
 			else if (plantable instanceof WitherRoseBlock)
-				condition = soilState.is(SCContent.REINFORCED_NETHERRACK.get()) || soilState.is(SCContent.REINFORCED_SOUL_SOIL.get()) || soilState.is(SCTags.Blocks.REINFORCED_DIRT);
+				condition = state.is(SCContent.REINFORCED_NETHERRACK.get()) || state.is(SCContent.REINFORCED_SOUL_SAND.get()) || state.is(SCContent.REINFORCED_SOUL_SOIL.get()) || state.is(SCTags.Blocks.REINFORCED_DIRT);
+			else if (plantable instanceof NetherWartBlock)
+				condition = state.is(SCContent.REINFORCED_SOUL_SAND.get());
 
 			if (condition)
-				return TriState.TRUE;
+				return true;
 		}
-		else if (plant.is(Blocks.SUGAR_CANE)) {
-			boolean isBeach = soilState.is(SCTags.Blocks.REINFORCED_DIRT) || soilState.is(SCTags.Blocks.REINFORCED_SAND);
+
+		if (PlantType.DESERT.equals(type))
+			return this == SCContent.REINFORCED_SAND.get() || this == SCContent.REINFORCED_TERRACOTTA.get() || this instanceof ReinforcedGlazedTerracottaBlock;
+		else if (PlantType.PLAINS.equals(type))
+			return state.is(SCTags.Blocks.REINFORCED_DIRT);
+		else if (PlantType.BEACH.equals(type)) {
+			boolean isBeach = state.is(SCTags.Blocks.REINFORCED_DIRT) || state.is(SCTags.Blocks.REINFORCED_SAND);
 			boolean hasWater = false;
 
 			for (Direction face : Direction.Plane.HORIZONTAL) {
-				BlockState blockState = level.getBlockState(soilPos.relative(face));
-				FluidState fluidState = level.getFluidState(soilPos.relative(face));
+				BlockState blockState = level.getBlockState(pos.relative(face));
+				FluidState fluidState = level.getFluidState(pos.relative(face));
 
 				hasWater |= blockState.is(Blocks.FROSTED_ICE);
-				hasWater |= fluidState.canHydrate(level, soilPos, blockState, soilPos.relative(face));
+				hasWater |= fluidState.canHydrate(level, pos, blockState, pos.relative(face));
 
 				if (hasWater)
 					break; //No point continuing.
 			}
 
-			return isBeach && hasWater ? TriState.TRUE : TriState.FALSE;
+			return isBeach && hasWater;
 		}
 
-		return TriState.DEFAULT;
+		return false;
 	}
 
 	@Override

@@ -1,39 +1,41 @@
 package net.geforcemods.securitycraft.network.server;
 
+import java.util.function.Supplier;
+
 import net.geforcemods.securitycraft.SCContent;
-import net.geforcemods.securitycraft.SecurityCraft;
-import net.geforcemods.securitycraft.components.SentryPositions;
 import net.geforcemods.securitycraft.util.PlayerUtils;
-import net.minecraft.core.GlobalPos;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.network.NetworkEvent;
 
-public record RemoveSentryFromSRAT(GlobalPos globalPos) implements CustomPacketPayload {
-	public static final Type<RemoveSentryFromSRAT> TYPE = new Type<>(SecurityCraft.resLoc("remove_sentry_from_srat"));
-	//@formatter:off
-	public static final StreamCodec<RegistryFriendlyByteBuf, RemoveSentryFromSRAT> STREAM_CODEC = StreamCodec.composite(
-			GlobalPos.STREAM_CODEC, RemoveSentryFromSRAT::globalPos,
-			RemoveSentryFromSRAT::new);
-	//@formatter:on
+public class RemoveSentryFromSRAT {
+	private int sentryIndex;
 
-	@Override
-	public Type<? extends CustomPacketPayload> type() {
-		return TYPE;
+	public RemoveSentryFromSRAT() {}
+
+	public RemoveSentryFromSRAT(int mineIndex) {
+		this.sentryIndex = mineIndex;
 	}
 
-	public void handle(IPayloadContext ctx) {
-		Player player = ctx.player();
+	public RemoveSentryFromSRAT(FriendlyByteBuf buf) {
+		sentryIndex = buf.readVarInt();
+	}
+
+	public void encode(FriendlyByteBuf buf) {
+		buf.writeVarInt(sentryIndex);
+	}
+
+	public void handle(Supplier<NetworkEvent.Context> ctx) {
+		Player player = ctx.get().getSender();
 		ItemStack stack = PlayerUtils.getItemStackFromAnyHand(player, SCContent.SENTRY_REMOTE_ACCESS_TOOL.get());
 
 		if (!stack.isEmpty()) {
-			SentryPositions sentries = stack.get(SCContent.BOUND_SENTRIES);
+			CompoundTag tag = stack.getOrCreateTag();
 
-			if (sentries != null)
-				sentries.remove(SCContent.BOUND_SENTRIES, stack, globalPos);
+			if (tag.contains("sentry" + sentryIndex))
+				tag.remove("sentry" + sentryIndex);
 		}
 	}
 }

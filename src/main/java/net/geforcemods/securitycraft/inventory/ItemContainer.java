@@ -1,28 +1,27 @@
 package net.geforcemods.securitycraft.inventory;
 
 import net.minecraft.core.NonNullList;
-import net.minecraft.core.component.DataComponents;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.component.ItemContainerContents;
 
 public class ItemContainer implements Container {
 	private final ItemStack containerStack;
 	private final NonNullList<ItemStack> inventory;
 	private final int maxStackSize;
-	private boolean changed;
 
 	private ItemContainer(ItemStack containerStack, int inventorySize, int maxStackSize) {
 		this.containerStack = containerStack;
 		this.maxStackSize = maxStackSize;
 		inventory = NonNullList.<ItemStack>withSize(inventorySize, ItemStack.EMPTY);
-		load();
+		load(containerStack.getOrCreateTag());
 	}
 
 	public static ItemContainer briefcase(ItemStack briefcase) {
-		return new ItemContainer(briefcase, BriefcaseMenu.CONTAINER_SIZE, Item.ABSOLUTE_MAX_STACK_SIZE);
+		return new ItemContainer(briefcase, BriefcaseMenu.CONTAINER_SIZE, 64);
 	}
 
 	public static ItemContainer keycardHolder(ItemStack keycardHolder) {
@@ -39,12 +38,32 @@ public class ItemContainer implements Container {
 		return inventory.get(index);
 	}
 
-	public void load() {
-		containerStack.getOrDefault(DataComponents.CONTAINER, ItemContainerContents.EMPTY).copyInto(inventory);
+	public void load(CompoundTag tag) {
+		ListTag items = tag.getList("ItemInventory", Tag.TAG_COMPOUND);
+
+		for (int i = 0; i < items.size(); i++) {
+			CompoundTag item = items.getCompound(i);
+			int slot = item.getInt("Slot");
+
+			if (slot < getContainerSize())
+				inventory.set(slot, ItemStack.of(item));
+		}
 	}
 
-	public void save() {
-		containerStack.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(inventory));
+	public void save(CompoundTag tag) {
+		ListTag items = new ListTag();
+
+		for (int i = 0; i < getContainerSize(); i++) {
+			if (!getItem(i).isEmpty()) {
+				CompoundTag item = new CompoundTag();
+
+				item.putInt("Slot", i);
+				getItem(i).save(item);
+				items.add(item);
+			}
+		}
+
+		tag.put("ItemInventory", items);
 	}
 
 	@Override
@@ -92,7 +111,7 @@ public class ItemContainer implements Container {
 				inventory.set(i, ItemStack.EMPTY);
 		}
 
-		changed = true;
+		save(containerStack.getTag());
 	}
 
 	@Override
@@ -104,10 +123,7 @@ public class ItemContainer implements Container {
 	public void startOpen(Player player) {}
 
 	@Override
-	public void stopOpen(Player player) {
-		if (changed)
-			save();
-	}
+	public void stopOpen(Player player) {}
 
 	@Override
 	public boolean canPlaceItem(int index, ItemStack stack) {

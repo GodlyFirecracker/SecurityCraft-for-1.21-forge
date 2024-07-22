@@ -1,0 +1,33 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "key": {
+    "D": {
+      "tag": "forge:gems/diamond"
+    },
+    "E": {
+      "tag": "forge:gems/emerald"
+    },
+    "G": {
+      "tag": "forge:ingots/gold"
+    },
+    "R": {
+      "tag": "forge:dusts/redstone"
+    },
+    "S": {
+      "tag": "forge:nether_stars"
+    },
+    "T": {
+      "item": "minecraft:redstone_torch"
+    }
+  },
+  "pattern": [
+    "DTD",
+    "GSG",
+    "RER"
+  ],
+  "result": {
+    "item": "securitycraft:codebreaker"
+  },
+  "show_notification": true
+}

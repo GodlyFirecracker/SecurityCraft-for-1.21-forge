@@ -18,10 +18,9 @@ import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 public class LaserBlockScreen extends AbstractContainerScreen<LaserBlockMenu> {
-	private static final ResourceLocation TEXTURE = SecurityCraft.resLoc("textures/gui/container/laser_block.png");
+	private static final ResourceLocation TEXTURE = new ResourceLocation(SecurityCraft.MODID, "textures/gui/container/laser_block.png");
 	private final boolean hasSmartModule;
 	private Component smartModuleTooltip;
 	private LaserBlockBlockEntity be;
@@ -62,6 +61,7 @@ public class LaserBlockScreen extends AbstractContainerScreen<LaserBlockMenu> {
 
 	@Override
 	protected void renderBg(GuiGraphics guiGraphics, float partialTick, int mouseX, int mouseY) {
+		renderBackground(guiGraphics);
 		guiGraphics.blit(TEXTURE, leftPos, topPos, 0, 0, imageWidth, imageHeight);
 	}
 
@@ -74,7 +74,7 @@ public class LaserBlockScreen extends AbstractContainerScreen<LaserBlockMenu> {
 
 	public void onChangeValue(Direction dir, boolean newValue) {
 		sideConfig.put(dir, newValue);
-		PacketDistributor.sendToServer(new SyncLaserSideConfig(be.getBlockPos(), LaserBlockBlockEntity.saveSideConfig(sideConfig)));
+		SecurityCraft.CHANNEL.sendToServer(new SyncLaserSideConfig(be.getBlockPos(), sideConfig));
 	}
 
 	@Override

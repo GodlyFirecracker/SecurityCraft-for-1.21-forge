@@ -5,7 +5,6 @@ import java.util.function.Consumer;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 
-import net.geforcemods.securitycraft.SecurityCraft;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractButton;
@@ -17,10 +16,7 @@ import net.minecraft.util.Mth;
 
 // copy from vanilla's Checkbox to be able to change the text color and remove the shadow
 public class CallbackCheckbox extends AbstractButton {
-	private static final ResourceLocation CHECKBOX_SELECTED_HIGHLIGHTED_SPRITE = SecurityCraft.mcResLoc("widget/checkbox_selected_highlighted");
-	private static final ResourceLocation CHECKBOX_SELECTED_SPRITE = SecurityCraft.mcResLoc("widget/checkbox_selected");
-	private static final ResourceLocation CHECKBOX_HIGHLIGHTED_SPRITE = SecurityCraft.mcResLoc("widget/checkbox_highlighted");
-	private static final ResourceLocation CHECKBOX_SPRITE = SecurityCraft.mcResLoc("widget/checkbox");
+	private static final ResourceLocation TEXTURE = new ResourceLocation("textures/gui/checkbox.png");
 	private boolean selected;
 	private final Consumer<Boolean> onChange;
 	private final int textColor;
@@ -41,19 +37,12 @@ public class CallbackCheckbox extends AbstractButton {
 	@Override
 	public void renderWidget(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
 		Minecraft minecraft = Minecraft.getInstance();
-		ResourceLocation sprite;
 
 		RenderSystem.enableDepthTest();
 		RenderSystem.enableBlend();
 		RenderSystem.defaultBlendFunc();
 		RenderSystem.blendFunc(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA);
-
-		if (selected)
-			sprite = isFocused() ? CHECKBOX_SELECTED_HIGHLIGHTED_SPRITE : CHECKBOX_SELECTED_SPRITE;
-		else
-			sprite = isFocused() ? CHECKBOX_HIGHLIGHTED_SPRITE : CHECKBOX_SPRITE;
-
-		guiGraphics.blitSprite(sprite, getX(), getY(), width, height);
+		guiGraphics.blit(TEXTURE, getX(), getY(), width, height, isFocused() ? 20.0F : 0.0F, selected ? 20.0F : 0.0F, 20, 20, 64, 64);
 		guiGraphics.drawString(minecraft.font, getMessage(), getX() + (int) (width * 1.2F), getY() + (height - 8) / 2, textColor | Mth.ceil(alpha * 255.0F) << 24, false);
 	}
 

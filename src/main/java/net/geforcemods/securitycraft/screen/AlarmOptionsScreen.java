@@ -21,9 +21,9 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
 public class AlarmOptionsScreen extends Screen {
-	private static final ResourceLocation GUI_TEXTURE = SecurityCraft.resLoc("textures/gui/container/alarm_options.png");
-	private static final ResourceLocation RESET_SPRITE = SecurityCraft.resLoc("widget/reset");
-	private static final ResourceLocation RESET_INACTIVE_SPRITE = SecurityCraft.resLoc("widget/reset_inactive");
+	private static final ResourceLocation GUI_TEXTURE = new ResourceLocation(SecurityCraft.MODID, "textures/gui/container/alarm_options.png");
+	private static final ResourceLocation RESET_TEXTURE = new ResourceLocation(SecurityCraft.MODID, "textures/gui/reset.png");
+	private static final ResourceLocation RESET_INACTIVE_TEXTURE = new ResourceLocation(SecurityCraft.MODID, "textures/gui/reset_inactive.png");
 	private final Component soundLengthText = Component.translatable("gui.securitycraft:alarm.sound_length").withStyle(ChatFormatting.UNDERLINE);
 	private final AlarmScreen alarmScreen;
 	private int imageWidth = 226, imageHeight = 112, leftPos, topPos;
@@ -56,7 +56,7 @@ public class AlarmOptionsScreen extends Screen {
 		minusMinute = addRenderableWidget(new Button(buttonsX, buttonY, 32, buttonHeight, Component.translatable("gui.securitycraft:alarm.minus_one_minute"), b -> changeSoundLength(-60), Button.DEFAULT_NARRATION));
 		minusTenSeconds = addRenderableWidget(new Button(buttonsX + 34, buttonY, 32, buttonHeight, Component.translatable("gui.securitycraft:alarm.minus_ten_seconds"), b -> changeSoundLength(-10), Button.DEFAULT_NARRATION));
 		minusSecond = addRenderableWidget(new Button(buttonsX + 68, buttonY, 32, buttonHeight, Component.translatable("gui.securitycraft:alarm.minus_one_second"), b -> changeSoundLength(-1), Button.DEFAULT_NARRATION));
-		reset = addRenderableWidget(new ActiveBasedTextureButton(buttonsX + 102, buttonY, 12, buttonHeight, RESET_SPRITE, RESET_INACTIVE_SPRITE, 1, 2, 10, 10, b -> changeSoundLength(0)));
+		reset = addRenderableWidget(new ActiveBasedTextureButton(buttonsX + 102, buttonY, 12, buttonHeight, RESET_TEXTURE, RESET_INACTIVE_TEXTURE, 10, 10, 1, 2, 10, 10, 10, 10, b -> changeSoundLength(0)));
 		plusSecond = addRenderableWidget(new Button(buttonsX + 116, buttonY, 32, buttonHeight, Component.translatable("gui.securitycraft:alarm.plus_one_second"), b -> changeSoundLength(1), Button.DEFAULT_NARRATION));
 		plusTenSeconds = addRenderableWidget(new Button(buttonsX + 150, buttonY, 32, buttonHeight, Component.translatable("gui.securitycraft:alarm.plus_ten_seconds"), b -> changeSoundLength(10), Button.DEFAULT_NARRATION));
 		plusMinute = addRenderableWidget(new Button(buttonsX + 184, buttonY, 32, buttonHeight, Component.translatable("gui.securitycraft:alarm.plus_one_minute"), b -> changeSoundLength(60), Button.DEFAULT_NARRATION));
@@ -66,6 +66,8 @@ public class AlarmOptionsScreen extends Screen {
 
 	@Override
 	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+		renderBackground(guiGraphics);
+		guiGraphics.blit(GUI_TEXTURE, leftPos, topPos, 0, 0, imageWidth, imageHeight);
 		super.render(guiGraphics, mouseX, mouseY, partialTick);
 		guiGraphics.drawString(font, title, width / 2 - font.width(title) / 2, topPos + 6, 0x404040, false);
 		guiGraphics.drawString(font, soundLengthText, soundLengthTextXPosition, topPos + 27, 0x404040, false);
@@ -76,11 +78,6 @@ public class AlarmOptionsScreen extends Screen {
 
 			guiGraphics.drawString(font, nextSoundText, width / 2 - font.width(nextSoundText) / 2, topPos + 95, 0x404040, false);
 		}
-	}
-
-	@Override
-	public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-		guiGraphics.blit(GUI_TEXTURE, leftPos, topPos, 0, 0, imageWidth, imageHeight);
 	}
 
 	public void setSoundLength(int newSoundLength) {
@@ -141,9 +138,9 @@ public class AlarmOptionsScreen extends Screen {
 		}
 
 		@Override
-		public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-			changeSoundLength((int) Math.signum(scrollY));
-			return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+		public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+			changeSoundLength((int) Math.signum(delta));
+			return super.mouseScrolled(mouseX, mouseY, delta);
 		}
 
 		@Override
@@ -199,7 +196,7 @@ public class AlarmOptionsScreen extends Screen {
 			}
 
 			setSoundLength(minutes * 60 + seconds, true);
-			moveCursorToEnd(false);
+			moveCursorToEnd();
 		}
 	}
 }

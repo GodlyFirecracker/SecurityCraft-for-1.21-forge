@@ -1,25 +1,35 @@
 package net.geforcemods.securitycraft;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 
 import org.apache.commons.lang3.tuple.Pair;
 
-import net.neoforged.neoforge.common.ModConfigSpec;
-import net.neoforged.neoforge.common.ModConfigSpec.BooleanValue;
-import net.neoforged.neoforge.common.ModConfigSpec.ConfigValue;
-import net.neoforged.neoforge.common.ModConfigSpec.DoubleValue;
-import net.neoforged.neoforge.common.ModConfigSpec.IntValue;
-import net.neoforged.neoforge.data.loading.DatagenModLoader;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraftforge.common.ForgeConfigSpec;
+import net.minecraftforge.common.ForgeConfigSpec.BooleanValue;
+import net.minecraftforge.common.ForgeConfigSpec.ConfigValue;
+import net.minecraftforge.common.ForgeConfigSpec.DoubleValue;
+import net.minecraftforge.common.ForgeConfigSpec.IntValue;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod.EventBusSubscriber;
+import net.minecraftforge.fml.common.Mod.EventBusSubscriber.Bus;
+import net.minecraftforge.fml.event.config.ModConfigEvent;
+import net.minecraftforge.fml.loading.FMLLoader;
+import net.minecraftforge.registries.ForgeRegistries;
 
+@EventBusSubscriber(modid = SecurityCraft.MODID, bus = Bus.MOD)
 public class ConfigHandler {
-	public static final ModConfigSpec CLIENT_SPEC;
+	public static final ForgeConfigSpec CLIENT_SPEC;
 	public static final Client CLIENT;
-	public static final ModConfigSpec SERVER_SPEC;
+	public static final ForgeConfigSpec SERVER_SPEC;
 	public static final Server SERVER;
 
 	static {
-		Pair<Client, ModConfigSpec> clientSpecPair = new ModConfigSpec.Builder().configure(Client::new);
-		Pair<Server, ModConfigSpec> serverSpecPair = new ModConfigSpec.Builder().configure(Server::new);
+		Pair<Client, ForgeConfigSpec> clientSpecPair = new ForgeConfigSpec.Builder().configure(Client::new);
+		Pair<Server, ForgeConfigSpec> serverSpecPair = new ForgeConfigSpec.Builder().configure(Server::new);
 
 		CLIENT_SPEC = clientSpecPair.getRight();
 		CLIENT = clientSpecPair.getLeft();
@@ -34,7 +44,7 @@ public class ConfigHandler {
 		public BooleanValue reinforcedBlockTint;
 		public IntValue reinforcedBlockTintColor;
 
-		Client(ModConfigSpec.Builder builder) {
+		Client(ForgeConfigSpec.Builder builder) {
 			//@formatter:off
 			sayThanksMessage = builder
 					.comment("Display a 'tip' message at spawn?")
@@ -53,6 +63,7 @@ public class ConfigHandler {
 	}
 
 	public static class Server {
+		public DoubleValue codebreakerChance;
 		public BooleanValue allowAdminTool;
 		public BooleanValue shouldSpawnFire;
 		public BooleanValue ableToBreakMines;
@@ -75,15 +86,25 @@ public class ConfigHandler {
 		public DoubleValue laserDamage;
 		public IntValue incorrectPasscodeDamage;
 		public IntValue sentryBulletDamage;
+		public IntValue reinforcedSuffocationDamage;
 		public BooleanValue allowCameraNightVision;
 		public IntValue passcodeCheckCooldown;
 		public BooleanValue passcodeSpamLogWarningEnabled;
 		public ConfigValue<String> passcodeSpamLogWarning;
 		public ConfigValue<List<? extends String>> sentryAttackableEntitiesAllowlist;
 		public ConfigValue<List<? extends String>> sentryAttackableEntitiesDenylist;
+		private ConfigValue<List<? extends String>> taserEffectsValue;
+		private ConfigValue<List<? extends String>> poweredTaserEffectsValue;
+		public final List<Supplier<MobEffectInstance>> taserEffects = new ArrayList<>();
+		public final List<Supplier<MobEffectInstance>> poweredTaserEffects = new ArrayList<>();
 
-		Server(ModConfigSpec.Builder builder) {
+		Server(ForgeConfigSpec.Builder builder) {
 			//@formatter:off
+			codebreakerChance = builder
+					.comment("The chance for the codebreaker to successfully hack a block. 0.33 is 33%. Set to a negative value to disable the codebreaker.",
+							"Using the codebreaker when this is set to 0.0 will still damage the item, while negative values do not damage it.")
+					.defineInRange("codebreaker_chance", 0.33D, -1.0D, 1.0D);
+
 			allowAdminTool = builder
 					.comment("Can the admin tool be used?")
 					.define("allowAdminTool", true);
@@ -162,6 +183,18 @@ public class ConfigHandler {
 					.comment("Set the amount of damage the powered taser inflicts onto the mobs it hits. Default is one heart.")
 					.defineInRange("powered_taser_damage", 2.0D, 0.0D, Double.MAX_VALUE);
 
+			taserEffectsValue = builder
+					.comment("Add effects to this list that you want the taser to inflict onto the mobs it hits. One entry corresponds to one effect, and is formatted like this:",
+							"effect_namespace:effect_path|duration|amplifier",
+							"Example: The entry \"minecraft:slowness|20|1\" defines slowness 1 for 1 second (20 ticks = 1 second).")
+					.defineList("taser_effects", List.of("minecraft:weakness|200|2", "minecraft:nausea|200|2", "minecraft:slowness|200|2"), String.class::isInstance);
+
+			poweredTaserEffectsValue = builder
+					.comment("Add effects to this list that you want the powered taser to inflict onto the mobs it hits. One entry corresponds to one effect, and is formatted like this:",
+							"effect_namespace:effect_path|duration|amplifier",
+							"Example: The entry \"minecraft:slowness|20|1\" defines slowness 1 for 1 second (20 ticks = 1 second).")
+					.defineList("powered_taser_effects", List.of("minecraft:weakness|400|5", "minecraft:nausea|400|5", "minecraft:slowness|400|5"), String.class::isInstance);
+
 			laserDamage = builder
 					.comment("Defines the damage inflicted to an entity if it passes through a laser with installed harming module. This is given in health points, meaning 2 health points = 1 heart")
 					.defineInRange("laser_damage", 10.0, 0.0D, Double.MAX_VALUE);
@@ -174,6 +207,10 @@ public class ConfigHandler {
 			sentryBulletDamage = builder
 					.comment("Set the amount of damage the default Sentry bullet inflicts onto the mobs it hits. This will not affect other projectiles the Sentry can use, like arrows. Default is one heart.")
 					.defineInRange("sentry_bullet_damage", 2, 0, Integer.MAX_VALUE);
+
+			reinforcedSuffocationDamage = builder
+					.comment("Set the amount of damage the player receives when they are suffocating in a reinforced block. The default is two and a half hearts. If the value is set to -1, vanilla suffocation damage will be used.")
+					.defineInRange("reinforced_suffocation_damage", 5, -1, Integer.MAX_VALUE);
 
 			allowCameraNightVision = builder
 					.comment("Set this to false to disallow players to activate night vision without having the potion effect when looking through cameras.")
@@ -202,12 +239,56 @@ public class ConfigHandler {
 		}
 	}
 
+	@SubscribeEvent
+	public static void onModConfig(ModConfigEvent event) {
+		if (event.getConfig().getSpec() == SERVER_SPEC && SERVER_SPEC.isLoaded()) {
+			loadEffects(SERVER.taserEffectsValue, SERVER.taserEffects);
+			loadEffects(SERVER.poweredTaserEffectsValue, SERVER.poweredTaserEffects);
+		}
+	}
+
+	private static void loadEffects(ConfigValue<List<? extends String>> effectsValue, List<Supplier<MobEffectInstance>> effects) {
+		effects.clear();
+
+		for (String entry : effectsValue.get()) {
+			String[] split = entry.split("\\|");
+
+			if (split.length == 3) {
+				int duration = Integer.parseInt(split[1]);
+				int amplifier = Integer.parseInt(split[2]);
+
+				if (validateValue(duration, entry) && validateValue(amplifier, entry)) {
+					ResourceLocation effectLocation = new ResourceLocation(split[0]);
+
+					if (!ForgeRegistries.MOB_EFFECTS.containsKey(effectLocation)) {
+						SecurityCraft.LOGGER.warn("Effect \"{}\" does not exist, skipping", effectLocation);
+						continue;
+					}
+
+					//the amplifier is actually 0-indexed, but 1-indexed in the config for ease of use
+					effects.add(() -> new MobEffectInstance(ForgeRegistries.MOB_EFFECTS.getValue(effectLocation), duration, amplifier - 1));
+				}
+			}
+			else
+				SecurityCraft.LOGGER.warn("Not enough information provided for effect \"{}\", skipping", entry);
+		}
+	}
+
+	private static boolean validateValue(int value, String entry) {
+		if (value <= 0) {
+			SecurityCraft.LOGGER.warn("Value \"{}\" cannot be less than or equal to zero for entry \"{}\", skipping", value, entry);
+			return false;
+		}
+
+		return true;
+	}
+
 	public static <T> T getOrDefault(ConfigValue<T> value) {
 		try {
 			return value.get();
 		}
 		catch (Exception e) {
-			if (!DatagenModLoader.isRunningDataGen()) {
+			if (!FMLLoader.getLaunchHandler().isData()) {
 				SecurityCraft.LOGGER.warn("Error when getting config value with getOrDefault! Please report this.");
 				e.printStackTrace();
 			}

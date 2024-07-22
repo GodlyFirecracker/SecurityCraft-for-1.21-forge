@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "group": "securitycraft:reinforced_terracotta",
+  "key": {
+    "D": {
+      "tag": "forge:dyes/light_gray"
+    },
+    "T": {
+      "item": "securitycraft:reinforced_hardened_clay"
+    }
+  },
+  "pattern": [
+    "TTT",
+    "TDT",
+    "TTT"
+  ],
+  "result": {
+    "count": 8,
+    "item": "securitycraft:reinforced_light_gray_terracotta"
+  },
+  "show_notification": true
+}

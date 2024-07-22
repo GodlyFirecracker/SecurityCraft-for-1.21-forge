@@ -2,19 +2,17 @@ package net.geforcemods.securitycraft.blockentities;
 
 import net.geforcemods.securitycraft.ClientHandler;
 import net.geforcemods.securitycraft.SCContent;
+import net.geforcemods.securitycraft.SecurityCraft;
 import net.geforcemods.securitycraft.api.CustomizableBlockEntity;
+import net.geforcemods.securitycraft.api.IDisguisable;
 import net.geforcemods.securitycraft.api.IModuleInventory;
 import net.geforcemods.securitycraft.api.Option;
-import net.geforcemods.securitycraft.blocks.DisguisableBlock;
 import net.geforcemods.securitycraft.misc.ModuleType;
 import net.geforcemods.securitycraft.models.DisguisableDynamicBakedModel;
 import net.geforcemods.securitycraft.network.client.RefreshDisguisableModel;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -22,9 +20,8 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.material.Fluids;
-import net.neoforged.neoforge.client.model.data.ModelData;
-import net.neoforged.neoforge.common.world.AuxiliaryLightManager;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraftforge.client.model.data.ModelData;
+import net.minecraftforge.network.PacketDistributor;
 
 public class DisguisableBlockEntity extends CustomizableBlockEntity {
 	public DisguisableBlockEntity(BlockPos pos, BlockState state) {
@@ -47,24 +44,20 @@ public class DisguisableBlockEntity extends CustomizableBlockEntity {
 		BlockState state = be.getBlockState();
 		Level level = be.getLevel();
 		BlockPos worldPosition = be.getBlockPos();
-		int newLight = DisguisableBlock.getDisguisedBlockStateFromStack(level, stack).map(s -> s.getLightEmission(level, worldPosition)).orElse(0);
 
 		if (!level.isClientSide) {
-			PacketDistributor.sendToPlayersTrackingChunk((ServerLevel) level, new ChunkPos(worldPosition), new RefreshDisguisableModel(worldPosition, true, stack, toggled));
+			SecurityCraft.CHANNEL.send(PacketDistributor.TRACKING_CHUNK.with(() -> level.getChunkAt(worldPosition)), new RefreshDisguisableModel(worldPosition, true, stack, toggled));
 
 			if (state.hasProperty(BlockStateProperties.WATERLOGGED) && state.getValue(BlockStateProperties.WATERLOGGED)) {
 				level.scheduleTick(worldPosition, Fluids.WATER, Fluids.WATER.getTickDelay(level));
 				level.updateNeighborsAt(worldPosition, state.getBlock());
 			}
 		}
-		else
+		else {
 			ClientHandler.putDisguisedBeRenderer(be, stack);
 
-		if (newLight > 0) {
-			AuxiliaryLightManager lightManager = level.getAuxLightManager(worldPosition);
-
-			if (lightManager != null)
-				lightManager.setLightAt(worldPosition, newLight);
+			if (state.getLightEmission(level, worldPosition) > 0)
+				level.getChunkSource().getLightEngine().checkBlock(worldPosition);
 		}
 	}
 
@@ -77,30 +70,31 @@ public class DisguisableBlockEntity extends CustomizableBlockEntity {
 	}
 
 	public static void onDisguiseModuleRemoved(BlockEntity be, ItemStack stack, boolean toggled) {
-		BlockState state = be.getBlockState();
 		Level level = be.getLevel();
 		BlockPos worldPosition = be.getBlockPos();
 
 		if (!level.isClientSide) {
-			PacketDistributor.sendToPlayersTrackingChunk((ServerLevel) level, new ChunkPos(worldPosition), new RefreshDisguisableModel(worldPosition, false, stack, toggled));
+			BlockState state = be.getBlockState();
+
+			SecurityCraft.CHANNEL.send(PacketDistributor.TRACKING_CHUNK.with(() -> level.getChunkAt(worldPosition)), new RefreshDisguisableModel(worldPosition, false, stack, toggled));
 
 			if (state.hasProperty(BlockStateProperties.WATERLOGGED) && state.getValue(BlockStateProperties.WATERLOGGED)) {
 				level.scheduleTick(worldPosition, Fluids.WATER, Fluids.WATER.getTickDelay(level));
 				level.updateNeighborsAt(worldPosition, state.getBlock());
 			}
 		}
-		else
+		else {
 			ClientHandler.DISGUISED_BLOCK_RENDER_DELEGATE.removeDelegateOf(be);
-
-		DisguisableBlock.getDisguisedBlockStateFromStack(level, stack).ifPresent(disguisedState -> {
-			if (disguisedState.getLightEmission(level, worldPosition) > 0)
-				level.getAuxLightManager(worldPosition).removeLightAt(worldPosition);
-		});
+			IDisguisable.getDisguisedBlockStateFromStack(level, stack).ifPresent(disguisedState -> {
+				if (disguisedState.getLightEmission(level, worldPosition) > 0)
+					level.getChunkSource().getLightEngine().checkBlock(worldPosition);
+			});
+		}
 	}
 
 	@Override
-	public void handleUpdateTag(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.handleUpdateTag(tag, lookupProvider);
+	public void handleUpdateTag(CompoundTag tag) {
+		super.handleUpdateTag(tag);
 		onHandleUpdateTag(this);
 	}
 
@@ -146,7 +140,7 @@ public class DisguisableBlockEntity extends CustomizableBlockEntity {
 	}
 
 	public static ModelData getModelData(BlockEntity be) {
-		BlockState disguisedState = DisguisableBlock.getDisguisedStateOrDefault(Blocks.AIR.defaultBlockState(), be.getLevel(), be.getBlockPos());
+		BlockState disguisedState = IDisguisable.getDisguisedStateOrDefault(Blocks.AIR.defaultBlockState(), be.getLevel(), be.getBlockPos());
 
 		return ModelData.builder().with(DisguisableDynamicBakedModel.DISGUISED_STATE, disguisedState).build();
 	}

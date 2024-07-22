@@ -2,6 +2,8 @@ package net.geforcemods.securitycraft.blocks;
 
 import java.util.stream.Stream;
 
+import net.geforcemods.securitycraft.SCContent;
+import net.geforcemods.securitycraft.api.IDisguisable;
 import net.geforcemods.securitycraft.api.IModuleInventory;
 import net.geforcemods.securitycraft.api.IOwnable;
 import net.geforcemods.securitycraft.api.IPasscodeConvertible;
@@ -20,6 +22,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.Container;
 import net.minecraft.world.Containers;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -31,6 +34,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Mirror;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
+import net.minecraft.world.level.block.entity.BaseContainerBlockEntity;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition.Builder;
@@ -43,7 +47,8 @@ import net.minecraft.world.phys.shapes.BooleanOp;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
-import net.neoforged.neoforge.common.NeoForge;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.network.NetworkHooks;
 
 public abstract class AbstractKeypadFurnaceBlock extends DisguisableBlock {
 	public static final DirectionProperty FACING = BlockStateProperties.HORIZONTAL_FACING;
@@ -70,12 +75,15 @@ public abstract class AbstractKeypadFurnaceBlock extends DisguisableBlock {
 	@Override
 	public void setPlacedBy(Level level, BlockPos pos, BlockState state, LivingEntity placer, ItemStack stack) {
 		if (placer instanceof Player player)
-			NeoForge.EVENT_BUS.post(new OwnershipEvent(level, pos, player));
+			MinecraftForge.EVENT_BUS.post(new OwnershipEvent(level, pos, player));
+
+		if (stack.hasCustomHoverName() && level.getBlockEntity(pos) instanceof BaseContainerBlockEntity baseContainer)
+			baseContainer.setCustomName(stack.getHoverName());
 	}
 
 	@Override
 	public VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext ctx) {
-		BlockState disguisedState = getDisguisedStateOrDefault(state, level, pos);
+		BlockState disguisedState = IDisguisable.getDisguisedStateOrDefault(state, level, pos);
 
 		if (disguisedState.getBlock() != this)
 			return disguisedState.getShape(level, pos, ctx);
@@ -92,7 +100,7 @@ public abstract class AbstractKeypadFurnaceBlock extends DisguisableBlock {
 
 	@Override
 	public VoxelShape getCollisionShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext ctx) {
-		BlockState disguisedState = getDisguisedStateOrDefault(state, level, pos);
+		BlockState disguisedState = IDisguisable.getDisguisedStateOrDefault(state, level, pos);
 
 		if (disguisedState.getBlock() != this)
 			return disguisedState.getShape(level, pos, ctx);
@@ -123,7 +131,7 @@ public abstract class AbstractKeypadFurnaceBlock extends DisguisableBlock {
 	}
 
 	@Override
-	public InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
+	public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
 		if (!level.isClientSide) {
 			AbstractKeypadFurnaceBlockEntity be = (AbstractKeypadFurnaceBlockEntity) level.getBlockEntity(pos);
 
@@ -140,7 +148,7 @@ public abstract class AbstractKeypadFurnaceBlock extends DisguisableBlock {
 
 					activate(be, level, pos, player);
 				}
-				else
+				else if (!player.getItemInHand(hand).is(SCContent.CODEBREAKER.get()))
 					be.openPasscodeGUI(level, pos, player);
 			}
 		}
@@ -151,7 +159,7 @@ public abstract class AbstractKeypadFurnaceBlock extends DisguisableBlock {
 	public void activate(AbstractKeypadFurnaceBlockEntity be, Level level, BlockPos pos, Player player) {
 		if (player instanceof ServerPlayer serverPlayer) {
 			level.gameEvent(player, GameEvent.CONTAINER_OPEN, pos);
-			serverPlayer.openMenu(be, pos);
+			NetworkHooks.openScreen(serverPlayer, be, pos);
 		}
 	}
 
@@ -222,11 +230,11 @@ public abstract class AbstractKeypadFurnaceBlock extends DisguisableBlock {
 			else
 				((IModuleInventory) furnace).dropAllModules();
 
-			tag = furnace.saveWithFullMetadata(level.registryAccess());
+			tag = furnace.saveWithFullMetadata();
 			furnace.clearContent();
 			level.setBlockAndUpdate(pos, convertedState);
 			furnace = (AbstractFurnaceBlockEntity) level.getBlockEntity(pos);
-			furnace.loadWithComponents(tag, level.registryAccess());
+			furnace.load(tag);
 
 			if (protect && player != null)
 				((IOwnable) furnace).setOwner(player.getUUID().toString(), player.getName().getString());

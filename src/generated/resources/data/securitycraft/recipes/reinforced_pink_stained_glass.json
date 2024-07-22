@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "group": "securitycraft:reinforced_glass",
+  "key": {
+    "D": {
+      "tag": "forge:dyes/pink"
+    },
+    "G": {
+      "item": "securitycraft:reinforced_glass"
+    }
+  },
+  "pattern": [
+    "GGG",
+    "GDG",
+    "GGG"
+  ],
+  "result": {
+    "count": 8,
+    "item": "securitycraft:reinforced_pink_stained_glass"
+  },
+  "show_notification": true
+}

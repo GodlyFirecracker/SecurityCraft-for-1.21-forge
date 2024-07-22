@@ -17,8 +17,10 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.Containers;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -38,6 +40,7 @@ import net.minecraft.world.level.block.state.StateDefinition.Builder;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraftforge.network.NetworkHooks;
 
 public class LaserBlock extends DisguisableBlock {
 	public static final BooleanProperty POWERED = BlockStateProperties.POWERED;
@@ -54,7 +57,7 @@ public class LaserBlock extends DisguisableBlock {
 	}
 
 	@Override
-	public InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
+	public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
 		LaserBlockBlockEntity be = (LaserBlockBlockEntity) level.getBlockEntity(pos);
 
 		if (be.isOwnedBy(player)) {
@@ -62,7 +65,7 @@ public class LaserBlock extends DisguisableBlock {
 				if (!be.isEnabled())
 					player.displayClientMessage(Utils.localize("gui.securitycraft:scManual.disabled"), true);
 				else {
-					player.openMenu(be, buf -> {
+					NetworkHooks.openScreen((ServerPlayer) player, be, buf -> {
 						buf.writeBlockPos(pos);
 						buf.writeNbt(LaserBlockBlockEntity.saveSideConfig(be.getSideConfig()));
 					});

@@ -6,8 +6,9 @@ import java.util.function.ToIntFunction;
 
 import net.geforcemods.securitycraft.ClientHandler;
 import net.geforcemods.securitycraft.SCContent;
+import net.geforcemods.securitycraft.SecurityCraft;
 import net.geforcemods.securitycraft.api.ILockable;
-import net.geforcemods.securitycraft.api.NamedBlockEntity;
+import net.geforcemods.securitycraft.api.INameSetter;
 import net.geforcemods.securitycraft.api.Option;
 import net.geforcemods.securitycraft.api.Option.BooleanOption;
 import net.geforcemods.securitycraft.api.Option.DisabledOption;
@@ -22,7 +23,6 @@ import net.geforcemods.securitycraft.network.server.SyncRiftStabilizer;
 import net.geforcemods.securitycraft.util.ITickingBlockEntity;
 import net.geforcemods.securitycraft.util.IToggleableEntries;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
@@ -37,13 +37,12 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
-import net.neoforged.neoforge.event.entity.EntityTeleportEvent;
-import net.neoforged.neoforge.event.entity.EntityTeleportEvent.ChorusFruit;
-import net.neoforged.neoforge.event.entity.EntityTeleportEvent.EnderEntity;
-import net.neoforged.neoforge.event.entity.EntityTeleportEvent.EnderPearl;
-import net.neoforged.neoforge.event.entity.EntityTeleportEvent.SpreadPlayersCommand;
-import net.neoforged.neoforge.event.entity.EntityTeleportEvent.TeleportCommand;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraftforge.event.entity.EntityTeleportEvent;
+import net.minecraftforge.event.entity.EntityTeleportEvent.ChorusFruit;
+import net.minecraftforge.event.entity.EntityTeleportEvent.EnderEntity;
+import net.minecraftforge.event.entity.EntityTeleportEvent.EnderPearl;
+import net.minecraftforge.event.entity.EntityTeleportEvent.SpreadPlayersCommand;
+import net.minecraftforge.event.entity.EntityTeleportEvent.TeleportCommand;
 
 public class RiftStabilizerBlockEntity extends DisguisableBlockEntity implements ITickingBlockEntity, ILockable, IToggleableEntries<TeleportationType> {
 	private final IntOption signalLength = new IntOption("signalLength", 60, 0, 400, 5); //20 seconds max
@@ -89,7 +88,7 @@ public class RiftStabilizerBlockEntity extends DisguisableBlockEntity implements
 			setChanged();
 
 			if (level.isClientSide)
-				PacketDistributor.sendToServer(new SyncRiftStabilizer(worldPosition, teleportationType, allowed));
+				SecurityCraft.CHANNEL.sendToServer(new SyncRiftStabilizer(worldPosition, teleportationType, allowed));
 
 			RiftStabilizerBlockEntity connectedBlockEntity = RiftStabilizerBlock.getConnectedBlockEntity(level, worldPosition);
 
@@ -121,8 +120,8 @@ public class RiftStabilizerBlockEntity extends DisguisableBlockEntity implements
 	}
 
 	@Override
-	public void saveAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.saveAdditional(tag, lookupProvider);
+	public void saveAdditional(CompoundTag tag) {
+		super.saveAdditional(tag);
 
 		CompoundTag teleportationNBT = new CompoundTag();
 		int i = 0;
@@ -140,8 +139,8 @@ public class RiftStabilizerBlockEntity extends DisguisableBlockEntity implements
 	}
 
 	@Override
-	public void loadAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.loadAdditional(tag, lookupProvider);
+	public void load(CompoundTag tag) {
+		super.load(tag);
 
 		if (tag.contains("teleportationTypes", Tag.TAG_COMPOUND)) {
 			CompoundTag teleportationNBT = tag.getCompound("teleportationTypes");
@@ -246,13 +245,24 @@ public class RiftStabilizerBlockEntity extends DisguisableBlockEntity implements
 		RiftStabilizerBlockEntity connectedBlockEntity = RiftStabilizerBlock.getConnectedBlockEntity(level, worldPosition);
 
 		if (connectedBlockEntity != null) {
-			switch (option) {
-				case IntOption io when option == signalLength -> connectedBlockEntity.setSignalLength(io.get());
-				case IntOption io when option == range -> connectedBlockEntity.setRange(io.get());
-				case BooleanOption bo when option == disabled -> connectedBlockEntity.setDisabled(bo.get());
-				case BooleanOption bo when option == ignoreOwner -> connectedBlockEntity.setIgnoresOwner(bo.get());
-				default -> throw new UnsupportedOperationException("Unhandled option synchronization in rift stabilizer! " + option.getName());
+			if (option instanceof IntOption io) {
+				if (option == signalLength)
+					connectedBlockEntity.setSignalLength(io.get());
+				else if (option == range)
+					connectedBlockEntity.setRange(io.get());
+				else
+					throw new UnsupportedOperationException("Unhandled option synchronization in rift stabilizer! " + option.getName());
 			}
+			else if (option instanceof BooleanOption bo) {
+				if (option == disabled)
+					connectedBlockEntity.setDisabled(bo.get());
+				else if (option == ignoreOwner)
+					connectedBlockEntity.setIgnoresOwner(bo.get());
+				else
+					throw new UnsupportedOperationException("Unhandled option synchronization in rift stabilizer! " + option.getName());
+			}
+			else
+				throw new UnsupportedOperationException("Unhandled option synchronization in rift stabilizer! " + option.getName());
 		}
 
 		super.onOptionChanged(option);
@@ -334,7 +344,7 @@ public class RiftStabilizerBlockEntity extends DisguisableBlockEntity implements
 		super.setCustomName(customName);
 
 		if (getBlockState().getValue(BlockStateProperties.DOUBLE_BLOCK_HALF) == DoubleBlockHalf.LOWER)
-			((NamedBlockEntity) level.getBlockEntity(worldPosition.above())).setCustomName(customName);
+			((INameSetter) level.getBlockEntity(worldPosition.above())).setCustomName(customName);
 	}
 
 	public enum TeleportationType {
@@ -351,16 +361,22 @@ public class RiftStabilizerBlockEntity extends DisguisableBlockEntity implements
 		}
 
 		public static TeleportationType getTypeFromEvent(EntityTeleportEvent event) {
-			return switch (event) {
-				case ChorusFruit fruit -> CHORUS_FRUIT;
-				case EnderPearl pearl -> ENDER_PEARL;
-				case EnderEntity ender when ender.getEntityLiving() instanceof EnderMan -> ENDERMAN;
-				case EnderEntity ender when ender.getEntityLiving() instanceof Shulker -> SHULKER;
-				case EnderEntity ender -> MODDED;
-				case TeleportCommand teleport -> null;
-				case SpreadPlayersCommand spreadPlayers -> null;
-				default -> MODDED;
-			};
+			if (event instanceof ChorusFruit)
+				return CHORUS_FRUIT;
+			else if (event instanceof EnderPearl)
+				return ENDER_PEARL;
+			else if (event instanceof EnderEntity enderEntityEvent) {
+				if (enderEntityEvent.getEntityLiving() instanceof EnderMan)
+					return ENDERMAN;
+				else if (enderEntityEvent.getEntityLiving() instanceof Shulker)
+					return SHULKER;
+
+				return MODDED;
+			}
+			else if (event instanceof TeleportCommand || event instanceof SpreadPlayersCommand)
+				return null;
+
+			return MODDED;
 		}
 
 		@Override

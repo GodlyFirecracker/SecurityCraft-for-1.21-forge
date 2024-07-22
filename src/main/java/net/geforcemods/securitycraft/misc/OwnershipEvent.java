@@ -3,7 +3,7 @@ package net.geforcemods.securitycraft.misc;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
-import net.neoforged.bus.api.Event;
+import net.minecraftforge.eventbus.api.Event;
 
 /**
  * Fired when a SecurityCraft block needs to have ownership information attached

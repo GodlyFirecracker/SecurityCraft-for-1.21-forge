@@ -99,12 +99,12 @@ public abstract class AbstractPanelBlock extends OwnableBlock implements SimpleW
 	}
 
 	@Override
-	public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
+	public void playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
 		//prevents dropping twice the amount of modules when breaking the block in creative mode
 		if (player.isCreative() && level.getBlockEntity(pos) instanceof IModuleInventory inv)
 			inv.getInventory().clear();
 
-		return super.playerWillDestroy(level, pos, state, player);
+		super.playerWillDestroy(level, pos, state, player);
 	}
 
 	@Override
@@ -155,7 +155,7 @@ public abstract class AbstractPanelBlock extends OwnableBlock implements SimpleW
 			level.scheduleTick(pos, this, signalLength);
 	}
 
-	protected static Direction getConnectedDirection(BlockState state) {
+	public static Direction getConnectedDirection(BlockState state) {
 		return switch (state.getValue(FACE)) {
 			case CEILING -> Direction.DOWN;
 			case FLOOR -> Direction.UP;

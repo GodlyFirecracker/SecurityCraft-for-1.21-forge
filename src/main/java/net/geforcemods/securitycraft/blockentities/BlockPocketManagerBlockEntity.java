@@ -27,7 +27,6 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Direction.Axis;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -49,10 +48,15 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.gameevent.GameEvent;
-import net.neoforged.neoforge.items.IItemHandler;
-import net.neoforged.neoforge.items.ItemStackHandler;
+import net.minecraft.world.phys.AABB;
+import net.minecraftforge.common.capabilities.Capability;
+import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.common.util.LazyOptional;
+import net.minecraftforge.items.IItemHandler;
+import net.minecraftforge.items.ItemStackHandler;
 
 public class BlockPocketManagerBlockEntity extends CustomizableBlockEntity implements MenuProvider, ITickingBlockEntity, ILockable {
+	public static final int RENDER_DISTANCE = 100;
 	private static final int BLOCK_PLACEMENTS_PER_TICK = 4;
 	private boolean enabled = false;
 	private boolean showOutline = false;
@@ -63,6 +67,8 @@ public class BlockPocketManagerBlockEntity extends CustomizableBlockEntity imple
 	private List<BlockPos> walls = new ArrayList<>();
 	private List<BlockPos> floor = new ArrayList<>();
 	protected NonNullList<ItemStack> storage = NonNullList.withSize(56, ItemStack.EMPTY);
+	private LazyOptional<IItemHandler> storageHandler;
+	private LazyOptional<IItemHandler> insertOnlyHandler;
 	private List<Pair<BlockPos, BlockState>> placeQueue = new ArrayList<>();
 	private boolean shouldPlaceBlocks = false;
 
@@ -588,16 +594,31 @@ public class BlockPocketManagerBlockEntity extends CustomizableBlockEntity imple
 		}
 	}
 
-	public static IItemHandler getCapability(BlockPocketManagerBlockEntity be, Direction side) {
-		//prevent extracting while auto building the block pocket
-		if (!be.isPlacingBlocks() && BlockUtils.isAllowedToExtractFromProtectedObject(side, be))
-			return new ValidityCheckItemStackHandler(be.storage);
+	@Override
+	public <T> LazyOptional<T> getCapability(Capability<T> cap, Direction side) {
+		//"!isPlacingBlocks()" prevents extracting while auto building the block pocket
+		if (cap == ForgeCapabilities.ITEM_HANDLER)
+			return !isPlacingBlocks() && BlockUtils.isAllowedToExtractFromProtectedObject(side, this) ? getStorageHandler().cast() : getInsertOnlyHandler().cast();
 		else
-			return new ValidityCheckInsertOnlyItemStackHandler(be.storage);
+			return super.getCapability(cap, side);
 	}
 
-	public NonNullList<ItemStack> getStorage() {
-		return storage;
+	@Override
+	public void invalidateCaps() {
+		if (storageHandler != null)
+			storageHandler.invalidate();
+
+		if (insertOnlyHandler != null)
+			insertOnlyHandler.invalidate();
+
+		super.invalidateCaps();
+	}
+
+	@Override
+	public void reviveCaps() {
+		storageHandler = null; //recreated in getStorageHandler
+		insertOnlyHandler = null; //recreated in getInsertOnlyHandler
+		super.reviveCaps();
 	}
 
 	@Override
@@ -622,18 +643,23 @@ public class BlockPocketManagerBlockEntity extends CustomizableBlockEntity imple
 
 		if (isEnabled() && module == ModuleType.DISGUISE)
 			setWalls(true);
-		else if (module == ModuleType.STORAGE)
-			Containers.dropContents(level, worldPosition, storage);
+		else if (module == ModuleType.STORAGE) {
+			getStorageHandler().ifPresent(handler -> {
+				for (int i = 0; i < handler.getSlots(); i++) {
+					Containers.dropItemStack(level, worldPosition.getX(), worldPosition.getY(), worldPosition.getZ(), handler.getStackInSlot(i));
+				}
+			});
+		}
 	}
 
 	@Override
-	public void saveAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
+	public void saveAdditional(CompoundTag tag) {
 		tag.putBoolean("BlockPocketEnabled", isEnabled());
 		tag.putBoolean("ShowOutline", showsOutline());
 		tag.putInt("Size", getSize());
 		tag.putInt("AutoBuildOffset", getAutoBuildOffset());
 		tag.putInt("Color", color);
-		ContainerHelper.saveAllItems(tag, storage, lookupProvider);
+		ContainerHelper.saveAllItems(tag, storage);
 
 		for (int i = 0; i < blocks.size(); i++) {
 			tag.putLong("BlocksList" + i, blocks.get(i).asLong());
@@ -647,20 +673,20 @@ public class BlockPocketManagerBlockEntity extends CustomizableBlockEntity imple
 			tag.putLong("FloorList" + i, floor.get(i).asLong());
 		}
 
-		super.saveAdditional(tag, lookupProvider);
+		super.saveAdditional(tag);
 	}
 
 	@Override
-	public void loadAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
+	public void load(CompoundTag tag) {
 		int i = 0;
 
-		super.loadAdditional(tag, lookupProvider);
+		super.load(tag);
 		setEnabled(tag.getBoolean("BlockPocketEnabled"));
 		setShowOutline(tag.getBoolean("ShowOutline"));
 		setSize(tag.getInt("Size"));
 		setAutoBuildOffset(tag.getInt("AutoBuildOffset"));
 		setColor(tag.getInt("Color"));
-		ContainerHelper.loadAllItems(tag, storage, lookupProvider);
+		ContainerHelper.loadAllItems(tag, storage);
 
 		while (tag.contains("BlocksList" + i)) {
 			blocks.add(BlockPos.of(tag.getLong("BlocksList" + i)));
@@ -707,6 +733,37 @@ public class BlockPocketManagerBlockEntity extends CustomizableBlockEntity imple
 	@Override
 	public Component getDisplayName() {
 		return super.getDisplayName();
+	}
+
+	@Override
+	public AABB getRenderBoundingBox() {
+		return new AABB(getBlockPos()).inflate(RENDER_DISTANCE);
+	}
+
+	public LazyOptional<IItemHandler> getStorageHandler() {
+		if (storageHandler == null) {
+			storageHandler = LazyOptional.of(() -> new ItemStackHandler(storage) {
+				@Override
+				public boolean isItemValid(int slot, ItemStack stack) {
+					return BlockPocketManagerBlockEntity.isItemValid(stack);
+				}
+			});
+		}
+
+		return storageHandler;
+	}
+
+	private LazyOptional<IItemHandler> getInsertOnlyHandler() {
+		if (insertOnlyHandler == null) {
+			insertOnlyHandler = LazyOptional.of(() -> new InsertOnlyItemStackHandler(storage) {
+				@Override
+				public boolean isItemValid(int slot, ItemStack stack) {
+					return BlockPocketManagerBlockEntity.isItemValid(stack);
+				}
+			});
+		}
+
+		return insertOnlyHandler;
 	}
 
 	public boolean isPlacingBlocks() {
@@ -761,27 +818,5 @@ public class BlockPocketManagerBlockEntity extends CustomizableBlockEntity imple
 
 	public boolean isEnabled() {
 		return enabled;
-	}
-
-	public static class ValidityCheckInsertOnlyItemStackHandler extends InsertOnlyItemStackHandler {
-		public ValidityCheckInsertOnlyItemStackHandler(NonNullList<ItemStack> stacks) {
-			super(stacks);
-		}
-
-		@Override
-		public boolean isItemValid(int slot, ItemStack stack) {
-			return BlockPocketManagerBlockEntity.isItemValid(stack);
-		}
-	}
-
-	public static class ValidityCheckItemStackHandler extends ItemStackHandler {
-		public ValidityCheckItemStackHandler(NonNullList<ItemStack> stacks) {
-			super(stacks);
-		}
-
-		@Override
-		public boolean isItemValid(int slot, ItemStack stack) {
-			return BlockPocketManagerBlockEntity.isItemValid(stack);
-		}
 	}
 }

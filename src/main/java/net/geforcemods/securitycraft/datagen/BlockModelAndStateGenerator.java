@@ -13,8 +13,6 @@ import net.geforcemods.securitycraft.blocks.mines.BaseFullMineBlock;
 import net.geforcemods.securitycraft.blocks.mines.BrushableMineBlock;
 import net.geforcemods.securitycraft.blocks.mines.DeepslateMineBlock;
 import net.geforcemods.securitycraft.blocks.reinforced.ReinforcedCarpetBlock;
-import net.geforcemods.securitycraft.blocks.reinforced.ReinforcedFenceBlock;
-import net.geforcemods.securitycraft.blocks.reinforced.ReinforcedFenceGateBlock;
 import net.geforcemods.securitycraft.blocks.reinforced.ReinforcedSlabBlock;
 import net.geforcemods.securitycraft.blocks.reinforced.ReinforcedStainedGlassBlock;
 import net.geforcemods.securitycraft.blocks.reinforced.ReinforcedStainedGlassPaneBlock;
@@ -29,6 +27,8 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.CrossCollisionBlock;
+import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.IronBarsBlock;
 import net.minecraft.world.level.block.SlabBlock;
 import net.minecraft.world.level.block.StairBlock;
@@ -40,15 +40,15 @@ import net.minecraft.world.level.block.state.properties.Half;
 import net.minecraft.world.level.block.state.properties.SlabType;
 import net.minecraft.world.level.block.state.properties.StairsShape;
 import net.minecraft.world.level.block.state.properties.WallSide;
-import net.neoforged.neoforge.client.model.generators.BlockStateProvider;
-import net.neoforged.neoforge.client.model.generators.ConfiguredModel;
-import net.neoforged.neoforge.client.model.generators.ModelFile;
-import net.neoforged.neoforge.client.model.generators.ModelFile.UncheckedModelFile;
-import net.neoforged.neoforge.client.model.generators.ModelProvider;
-import net.neoforged.neoforge.client.model.generators.MultiPartBlockStateBuilder;
-import net.neoforged.neoforge.client.model.generators.VariantBlockStateBuilder;
-import net.neoforged.neoforge.common.data.ExistingFileHelper;
-import net.neoforged.neoforge.registries.DeferredHolder;
+import net.minecraftforge.client.model.generators.BlockStateProvider;
+import net.minecraftforge.client.model.generators.ConfiguredModel;
+import net.minecraftforge.client.model.generators.ModelFile;
+import net.minecraftforge.client.model.generators.ModelFile.UncheckedModelFile;
+import net.minecraftforge.client.model.generators.ModelProvider;
+import net.minecraftforge.client.model.generators.MultiPartBlockStateBuilder;
+import net.minecraftforge.client.model.generators.VariantBlockStateBuilder;
+import net.minecraftforge.common.data.ExistingFileHelper;
+import net.minecraftforge.registries.RegistryObject;
 
 public class BlockModelAndStateGenerator extends BlockStateProvider {
 	//@formatter:off
@@ -71,21 +71,23 @@ public class BlockModelAndStateGenerator extends BlockStateProvider {
 		List<Item> mineTabItems = SCCreativeModeTabs.STACKS_FOR_ITEM_GROUPS.get(SCItemGroup.EXPLOSIVES).stream().map(ItemStack::getItem).toList();
 		List<Item> decorationTabItems = SCCreativeModeTabs.STACKS_FOR_ITEM_GROUPS.get(SCItemGroup.DECORATION).stream().map(ItemStack::getItem).toList();
 
-		for (DeferredHolder<Block, ? extends Block> obj : SCContent.BLOCKS.getEntries()) {
+		for (RegistryObject<Block> obj : SCContent.BLOCKS.getEntries()) {
 			Block block = obj.get();
 			Item item = block.asItem();
 
 			if (decorationTabItems.contains(item)) {
-				switch (block) {
-					case ReinforcedSlabBlock slab -> reinforcedSlabBlock(block);
-					case ReinforcedStainedGlassBlock glass -> simpleBlockWithRenderType(block, "translucent");
-					case ReinforcedStainedGlassPaneBlock pane -> reinforcedPaneBlock((IronBarsBlock) block, "translucent");
-					case ReinforcedStairsBlock stairs -> reinforcedStairsBlock(block);
-					case ReinforcedWallBlock wall -> reinforcedWallBlock(block);
-					case ReinforcedCarpetBlock carpet -> reinforcedCarpetBlock(block);
-					default -> {
-					}
-				}
+				if (block instanceof ReinforcedSlabBlock)
+					reinforcedSlabBlock(block);
+				else if (block instanceof ReinforcedStainedGlassBlock)
+					simpleBlockWithRenderType(block, "translucent");
+				else if (block instanceof ReinforcedStainedGlassPaneBlock)
+					reinforcedPaneBlock((IronBarsBlock) block, "translucent");
+				else if (block instanceof ReinforcedStairsBlock)
+					reinforcedStairsBlock(block);
+				else if (block instanceof ReinforcedWallBlock)
+					reinforcedWallBlock(block);
+				else if (block instanceof ReinforcedCarpetBlock)
+					reinforcedCarpetBlock(block);
 			}
 			else if (mineTabItems.contains(item) && block instanceof BaseFullMineBlock mine && !(mine instanceof DeepslateMineBlock || mine instanceof BrushableMineBlock))
 				blockMine(mine.getBlockDisguisedAs(), block);
@@ -100,7 +102,7 @@ public class BlockModelAndStateGenerator extends BlockStateProvider {
 		simpleBlockWithRenderType(SCContent.FLOOR_TRAP.get(), "translucent");
 		simpleBlockWithRenderType(SCContent.REINFORCED_GLASS.get(), "cutout");
 		reinforcedCarpetBlock(SCContent.REINFORCED_MOSS_CARPET.get(), "block");
-		reinforcedPaneBlock(SCContent.REINFORCED_GLASS_PANE.get(), "cutout_mipped");
+		reinforcedPaneBlock((IronBarsBlock) SCContent.REINFORCED_GLASS_PANE.get(), "cutout_mipped");
 
 		reinforcedFenceBlock(SCContent.REINFORCED_OAK_FENCE.get(), "oak_planks");
 		reinforcedFenceBlock(SCContent.REINFORCED_SPRUCE_FENCE.get(), "spruce_planks");
@@ -172,7 +174,6 @@ public class BlockModelAndStateGenerator extends BlockStateProvider {
 		reinforcedSlabBlock(SCContent.REINFORCED_SMOOTH_CRYSTAL_QUARTZ_SLAB.get(), "reinforced_smooth_quartz", "quartz_block_bottom", "quartz_block_bottom");
 		reinforcedSlabBlock(SCContent.REINFORCED_DEEPSLATE_BRICK_SLAB.get(), "reinforced_deepslate_bricks", "deepslate_bricks");
 		reinforcedSlabBlock(SCContent.REINFORCED_DEEPSLATE_TILE_SLAB.get(), "reinforced_deepslate_tiles", "deepslate_tiles");
-		reinforcedSlabBlock(SCContent.REINFORCED_TUFF_BRICK_SLAB.get(), "reinforced_tuff_bricks", "tuff_bricks");
 
 		reinforcedStairsBlock(SCContent.REINFORCED_PURPUR_STAIRS.get(), "purpur_block");
 		reinforcedStairsBlock(SCContent.REINFORCED_OAK_STAIRS.get(), "oak_planks");
@@ -207,7 +208,6 @@ public class BlockModelAndStateGenerator extends BlockStateProvider {
 		reinforcedStairsBlock(SCContent.SMOOTH_CRYSTAL_QUARTZ_STAIRS.get(), "quartz_block_bottom", "quartz_block_bottom");
 		reinforcedStairsBlock(SCContent.REINFORCED_DEEPSLATE_BRICK_STAIRS.get(), "deepslate_bricks");
 		reinforcedStairsBlock(SCContent.REINFORCED_DEEPSLATE_TILE_STAIRS.get(), "deepslate_tiles");
-		reinforcedStairsBlock(SCContent.REINFORCED_TUFF_BRICK_STAIRS.get(), "tuff_bricks");
 
 		reinforcedWallBlock(SCContent.REINFORCED_BRICK_WALL.get(), "bricks");
 		reinforcedWallBlock(SCContent.REINFORCED_MOSSY_STONE_BRICK_WALL.get(), "mossy_stone_bricks");
@@ -219,7 +219,6 @@ public class BlockModelAndStateGenerator extends BlockStateProvider {
 		reinforcedWallBlock(SCContent.REINFORCED_POLISHED_BLACKSTONE_BRICK_WALL.get(), "polished_blackstone_bricks");
 		reinforcedWallBlock(SCContent.REINFORCED_DEEPSLATE_BRICK_WALL.get(), "deepslate_bricks");
 		reinforcedWallBlock(SCContent.REINFORCED_DEEPSLATE_TILE_WALL.get(), "deepslate_tiles");
-		reinforcedWallBlock(SCContent.REINFORCED_TUFF_BRICK_WALL.get(), "tuff_bricks");
 	}
 
 	public void blockMine(Block vanillaBlock, Block block) {
@@ -254,15 +253,15 @@ public class BlockModelAndStateGenerator extends BlockStateProvider {
 		});
 	}
 
-	public void reinforcedFenceBlock(ReinforcedFenceBlock block, String textureName) {
+	public void reinforcedFenceBlock(Block block, String textureName) {
 		String baseName = Utils.getRegistryName(block).toString();
 		ResourceLocation texture = mcBlock(textureName);
 
-		fourWayBlock(block, models().fencePost(baseName + "_post", texture), models().fenceSide(baseName + "_side", texture));
+		fourWayBlock((CrossCollisionBlock) block, models().fencePost(baseName + "_post", texture), models().fenceSide(baseName + "_side", texture));
 		models().singleTexture(baseName + "_inventory", modBlock("reinforced_fence_inventory"), texture);
 	}
 
-	public void reinforcedFenceGateBlock(ReinforcedFenceGateBlock block, String textureName) {
+	public void reinforcedFenceGateBlock(Block block, String textureName) {
 		String baseName = Utils.getRegistryName(block).toString();
 		ResourceLocation texture = mcBlock(textureName);
 		ModelFile gate = models().fenceGate(baseName, texture);
@@ -270,7 +269,7 @@ public class BlockModelAndStateGenerator extends BlockStateProvider {
 		ModelFile gateWall = models().fenceGateWall(baseName + "_wall", texture);
 		ModelFile gateWallOpen = models().fenceGateWallOpen(baseName + "_wall_open", texture);
 
-		fenceGateBlock(block, gate, gateOpen, gateWall, gateWallOpen);
+		fenceGateBlock((FenceGateBlock) block, gate, gateOpen, gateWall, gateWallOpen);
 	}
 
 	public void reinforcedPaneBlock(IronBarsBlock block, String renderType) {

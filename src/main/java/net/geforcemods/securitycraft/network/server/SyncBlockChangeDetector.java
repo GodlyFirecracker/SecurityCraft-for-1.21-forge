@@ -1,40 +1,48 @@
 package net.geforcemods.securitycraft.network.server;
 
-import net.geforcemods.securitycraft.SecurityCraft;
+import java.util.function.Supplier;
+
 import net.geforcemods.securitycraft.blockentities.BlockChangeDetectorBlockEntity;
 import net.geforcemods.securitycraft.blockentities.BlockChangeDetectorBlockEntity.DetectionMode;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.neoforge.network.codec.NeoForgeStreamCodecs;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.network.NetworkEvent;
 
-public record SyncBlockChangeDetector(BlockPos pos, DetectionMode mode, boolean showHighlights, int color) implements CustomPacketPayload {
+public class SyncBlockChangeDetector {
+	private BlockPos pos;
+	private DetectionMode mode;
+	private boolean showHighlights;
+	private int color;
 
-	public static final Type<SyncBlockChangeDetector> TYPE = new Type<>(SecurityCraft.resLoc("sync_block_change_detector"));
-	//@formatter:off
-	public static final StreamCodec<RegistryFriendlyByteBuf, SyncBlockChangeDetector> STREAM_CODEC = StreamCodec.composite(
-			BlockPos.STREAM_CODEC, SyncBlockChangeDetector::pos,
-			NeoForgeStreamCodecs.enumCodec(DetectionMode.class), SyncBlockChangeDetector::mode,
-			ByteBufCodecs.BOOL, SyncBlockChangeDetector::showHighlights,
-			ByteBufCodecs.VAR_INT, SyncBlockChangeDetector::color,
-			SyncBlockChangeDetector::new);
-	//@formatter:on
-	@Override
-	public Type<? extends CustomPacketPayload> type() {
-		return TYPE;
+	public SyncBlockChangeDetector() {}
+
+	public SyncBlockChangeDetector(BlockPos pos, DetectionMode mode, boolean showHighlights, int color) {
+		this.pos = pos;
+		this.mode = mode;
+		this.showHighlights = showHighlights;
+		this.color = color;
 	}
 
-	public void handle(IPayloadContext ctx) {
-		Player player = ctx.player();
-		Level level = player.level();
+	public SyncBlockChangeDetector(FriendlyByteBuf buf) {
+		pos = buf.readBlockPos();
+		mode = buf.readEnum(DetectionMode.class);
+		showHighlights = buf.readBoolean();
+		color = buf.readInt();
+	}
 
-		if (level.getBlockEntity(pos) instanceof BlockChangeDetectorBlockEntity be && be.isOwnedBy(player)) {
+	public void encode(FriendlyByteBuf buf) {
+		buf.writeBlockPos(pos);
+		buf.writeEnum(mode);
+		buf.writeBoolean(showHighlights);
+		buf.writeInt(color);
+	}
+
+	public void handle(Supplier<NetworkEvent.Context> ctx) {
+		Level level = ctx.get().getSender().level();
+
+		if (level.getBlockEntity(pos) instanceof BlockChangeDetectorBlockEntity be && be.isOwnedBy(ctx.get().getSender())) {
 			BlockState state = level.getBlockState(pos);
 
 			be.setMode(mode);

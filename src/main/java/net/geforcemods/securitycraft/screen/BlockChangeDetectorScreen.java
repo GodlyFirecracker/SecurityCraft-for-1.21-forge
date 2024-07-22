@@ -43,11 +43,10 @@ import net.minecraft.world.inventory.ContainerListener;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
-import net.neoforged.neoforge.client.gui.widget.ScrollPanel;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraftforge.client.gui.widget.ScrollPanel;
 
 public class BlockChangeDetectorScreen extends AbstractContainerScreen<BlockChangeDetectorMenu> implements ContainerListener, IHasExtraAreas {
-	private static final ResourceLocation TEXTURE = SecurityCraft.resLoc("textures/gui/container/block_change_detector.png");
+	private static final ResourceLocation TEXTURE = new ResourceLocation("securitycraft:textures/gui/container/block_change_detector.png");
 	private BlockChangeDetectorBlockEntity be;
 	private ChangeEntryList changeEntryList;
 	private TextHoverChecker smartModuleHoverChecker;
@@ -78,7 +77,7 @@ public class BlockChangeDetectorScreen extends AbstractContainerScreen<BlockChan
 			changeEntryList.filteredEntries.clear();
 			be.getEntries().clear();
 			be.setChanged();
-			PacketDistributor.sendToServer(new ClearChangeDetectorServer(be.getBlockPos()));
+			SecurityCraft.CHANNEL.sendToServer(new ClearChangeDetectorServer(be.getBlockPos()));
 		}));
 		DateFormat dateFormat = DateFormat.getDateTimeInstance(DateFormat.DEFAULT, DateFormat.DEFAULT, Locale.getDefault());
 		boolean isOwner = be.isOwnedBy(minecraft.player);
@@ -92,18 +91,20 @@ public class BlockChangeDetectorScreen extends AbstractContainerScreen<BlockChan
 			changeEntryList.updateFilteredEntries();
 			be.updateFilteredEntries();
 		}));
-		//@formatter:off
-		showAllCheckbox = addRenderableWidget(Checkbox.builder(Component.empty(), minecraft.font)
-				.pos(settingsX, topPos + 65)
-				.selected(false)
-				.onValueChange((checkbox, isSelected) -> changeEntryList.updateFilteredEntries())
-				.build());
-		highlightInWorldCheckbox = addRenderableWidget(Checkbox.builder(Component.empty(), minecraft.font)
-				.pos(settingsX, topPos + 90)
-				.selected(be.isShowingHighlights())
-				.onValueChange((checkbox, isSelected) -> be.showHighlights(isSelected))
-				.build());
-		//@formatter:on
+		showAllCheckbox = addRenderableWidget(new Checkbox(settingsX, topPos + 65, 20, 20, Component.empty(), false, false) {
+			@Override
+			public void onPress() {
+				super.onPress();
+				changeEntryList.updateFilteredEntries();
+			}
+		});
+		highlightInWorldCheckbox = addRenderableWidget(new Checkbox(settingsX, topPos + 90, 20, 20, Component.empty(), be.isShowingHighlights(), false) {
+			@Override
+			public void onPress() {
+				super.onPress();
+				be.showHighlights(selected());
+			}
+		});
 		colorChooser = addRenderableWidget(new ColorChooser(Component.empty(), settingsX, topPos + 135, previousColor) {
 			@Override
 			public void onColorChange() {
@@ -164,6 +165,7 @@ public class BlockChangeDetectorScreen extends AbstractContainerScreen<BlockChan
 
 	@Override
 	protected void renderBg(GuiGraphics guiGraphics, float partialTick, int mouseX, int mouseY) {
+		renderBackground(guiGraphics);
 		guiGraphics.blit(TEXTURE, leftPos, topPos, 0, 0, imageWidth, imageHeight);
 	}
 
@@ -177,11 +179,11 @@ public class BlockChangeDetectorScreen extends AbstractContainerScreen<BlockChan
 	}
 
 	@Override
-	public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+	public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
 		if (changeEntryList != null)
-			changeEntryList.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+			changeEntryList.mouseScrolled(mouseX, mouseY, delta);
 
-		return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+		return super.mouseScrolled(mouseX, mouseY, delta);
 	}
 
 	@Override
@@ -240,7 +242,7 @@ public class BlockChangeDetectorScreen extends AbstractContainerScreen<BlockChan
 		int currentColor = be.getColor();
 
 		if (previousMode != currentMode || wasShowingHighlights != isShowingHighlights || previousColor != currentColor)
-			PacketDistributor.sendToServer(new SyncBlockChangeDetector(be.getBlockPos(), currentMode, isShowingHighlights, currentColor));
+			SecurityCraft.CHANNEL.sendToServer(new SyncBlockChangeDetector(be.getBlockPos(), currentMode, isShowingHighlights, currentColor));
 
 		be.updateFilteredEntries();
 	}
@@ -272,7 +274,7 @@ public class BlockChangeDetectorScreen extends AbstractContainerScreen<BlockChan
 		private int contentHeight = 0;
 
 		public ChangeEntryList(Minecraft client, int width, int height, int top, int left) {
-			super(client, width, height, top, left, 4, 6);
+			super(client, width, height, top, left, 4, 6, 0x00000000, 0x00000000);
 		}
 
 		@Override
@@ -400,11 +402,11 @@ public class BlockChangeDetectorScreen extends AbstractContainerScreen<BlockChan
 		}
 
 		@Override
-		public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+		public boolean mouseScrolled(double mouseX, double mouseY, double scroll) {
 			if (getContentHeight() < height)
 				return false;
 
-			return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+			return super.mouseScrolled(mouseX, mouseY, scroll);
 		}
 
 		@Override
@@ -429,8 +431,8 @@ public class BlockChangeDetectorScreen extends AbstractContainerScreen<BlockChan
 		}
 
 		@Override
-		public void renderWidget(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-			super.renderWidget(guiGraphics, mouseX, mouseY, partialTick);
+		public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+			super.render(guiGraphics, mouseX, mouseY, partialTick);
 
 			if (currentIndex == DetectionMode.BREAK.ordinal())
 				guiGraphics.renderItem(ironPickaxe, getX() + 2, getY() + 2);
@@ -453,8 +455,8 @@ public class BlockChangeDetectorScreen extends AbstractContainerScreen<BlockChan
 		}
 
 		@Override
-		public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-			setCurrentIndex(currentIndex - (int) Math.signum(scrollY));
+		public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+			setCurrentIndex(currentIndex - (int) Math.signum(delta));
 			onPress.onPress(this);
 			return true;
 		}

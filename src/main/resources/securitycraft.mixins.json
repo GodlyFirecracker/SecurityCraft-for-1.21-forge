@@ -1,7 +1,7 @@
 {
 	"required": true,
 	"package": "net.geforcemods.securitycraft.mixin",
-	"compatibilityLevel": "JAVA_21",
+	"compatibilityLevel": "JAVA_17",
 	"refmap": "securitycraft.refmap.json",
 	"client": [
 		"camera.ClientChunkCacheMixin",
@@ -14,14 +14,16 @@
 	],
 	"mixins": [
 		"boat.BoatMixin",
+		"boat.BoatItemMixin",
+		"boat.VanillaInventoryCodeHooksMixin",
 		"camera.ChunkMapMixin",
 		"camera.PlayerListMixin",
 		"camera.ServerPlayerMixin",
 		"camera.TrackedEntityMixin",
-		"datafix.ItemStackComponentizationFixMixin",
-		"datafix.V1460Mixin",
 		"portal.PortalForcerMixin",
 		"potion.BrewingStandMenuMixin",
+		"reinforced.BubbleColumnBlockMixin",
+		"reinforced.WritableAndWrittenBookItemMixin",
 		"suspiciousmines.BrushItemMixin"
 	],
 	"minVersion": "0.8"

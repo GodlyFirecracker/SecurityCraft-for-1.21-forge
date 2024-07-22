@@ -1,35 +1,34 @@
 package net.geforcemods.securitycraft.items;
 
+import java.util.Map;
+
 import net.geforcemods.securitycraft.SCContent;
 import net.geforcemods.securitycraft.api.IModuleInventory;
 import net.geforcemods.securitycraft.api.IOwnable;
 import net.geforcemods.securitycraft.api.IReinforcedBlock;
 import net.geforcemods.securitycraft.inventory.BlockReinforcerMenu;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Holder;
-import net.minecraft.core.HolderLookup;
-import net.minecraft.core.component.DataComponents;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.MenuProvider;
-import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.Enchantments;
-import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.LecternBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraftforge.network.NetworkHooks;
 
 public class UniversalBlockReinforcerItem extends Item {
 	public UniversalBlockReinforcerItem(Item.Properties properties) {
@@ -41,8 +40,8 @@ public class UniversalBlockReinforcerItem extends Item {
 		ItemStack heldItem = player.getItemInHand(hand);
 
 		if (!level.isClientSide) {
-			maybeRemoveMending(level.registryAccess(), heldItem);
-			player.openMenu(new MenuProvider() {
+			maybeRemoveMending(heldItem);
+			NetworkHooks.openScreen((ServerPlayer) player, new MenuProvider() {
 				@Override
 				public AbstractContainerMenu createMenu(int windowId, Inventory inv, Player player) {
 					return new BlockReinforcerMenu(windowId, inv, UniversalBlockReinforcerItem.this == SCContent.UNIVERSAL_BLOCK_REINFORCER_LVL_1.get());
@@ -79,7 +78,7 @@ public class UniversalBlockReinforcerItem extends Item {
 
 				if (!level.isClientSide) {
 					if (be != null) {
-						tag = be.saveWithoutMetadata(level.registryAccess());
+						tag = be.saveWithoutMetadata();
 
 						if (be instanceof IModuleInventory inv)
 							inv.dropAllModules();
@@ -95,13 +94,13 @@ public class UniversalBlockReinforcerItem extends Item {
 
 					if (be != null) { //in case the converted block gets removed immediately after it's set
 						if (tag != null)
-							be.loadWithComponents(tag, level.registryAccess());
+							be.load(tag);
 
 						if (isReinforcing)
 							((IOwnable) be).setOwner(player.getGameProfile().getId().toString(), player.getName().getString());
 					}
 
-					stack.hurtAndBreak(1, player, LivingEntity.getSlotForHand(player.getUsedItemHand()));
+					stack.hurtAndBreak(1, player, p -> p.broadcastBreakEvent(p.getUsedItemHand()));
 				}
 
 				return true;
@@ -112,23 +111,20 @@ public class UniversalBlockReinforcerItem extends Item {
 	}
 
 	public static boolean isReinforcing(ItemStack stack) {
-		return stack.is(SCContent.UNIVERSAL_BLOCK_REINFORCER_LVL_1.get()) || !stack.has(SCContent.UNREINFORCING);
+		return stack.is(SCContent.UNIVERSAL_BLOCK_REINFORCER_LVL_1.get()) || !stack.getOrCreateTag().getBoolean("is_unreinforcing");
 	}
 
-	public static void maybeRemoveMending(HolderLookup.Provider lookupProvider, ItemStack stack) {
-		ItemEnchantments enchantments = stack.get(DataComponents.ENCHANTMENTS);
-		Holder<Enchantment> mending = lookupProvider.lookup(Registries.ENCHANTMENT).get().getOrThrow(Enchantments.MENDING);
+	public static void maybeRemoveMending(ItemStack stack) {
+		Map<Enchantment, Integer> enchantments = EnchantmentHelper.getEnchantments(stack);
 
-		if (enchantments != null && enchantments.getLevel(mending) > 0) {
-			ItemEnchantments.Mutable mutable = new ItemEnchantments.Mutable(enchantments);
-
-			mutable.set(mending, 0);
-			stack.set(DataComponents.ENCHANTMENTS, mutable.toImmutable());
+		if (enchantments.containsKey(Enchantments.MENDING)) {
+			enchantments.remove(Enchantments.MENDING);
+			EnchantmentHelper.setEnchantments(enchantments, stack);
 		}
 	}
 
 	@Override
 	public boolean isBookEnchantable(ItemStack stack, ItemStack book) {
-		return book.getOrDefault(DataComponents.STORED_ENCHANTMENTS, ItemEnchantments.EMPTY).keySet().stream().noneMatch(e -> e.is(Enchantments.MENDING));
+		return !EnchantmentHelper.getEnchantments(book).containsKey(Enchantments.MENDING);
 	}
 }

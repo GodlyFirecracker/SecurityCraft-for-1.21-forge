@@ -18,10 +18,9 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 public class KeyChangerScreen extends Screen {
-	private static final ResourceLocation TEXTURE = SecurityCraft.resLoc("textures/gui/container/blank.png");
+	private static final ResourceLocation TEXTURE = new ResourceLocation("securitycraft:textures/gui/container/blank.png");
 	private final Component ukcName = Utils.localize(SCContent.UNIVERSAL_KEY_CHANGER.get().getDescriptionId());
 	private final Component enterPasscode = Utils.localize("gui.securitycraft:universalKeyChanger.enterNewPasscode");
 	private final Component confirmPasscode = Utils.localize("gui.securitycraft:universalKeyChanger.confirmNewPasscode");
@@ -63,16 +62,12 @@ public class KeyChangerScreen extends Screen {
 
 	@Override
 	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+		renderBackground(guiGraphics);
+		guiGraphics.blit(TEXTURE, leftPos, topPos, 0, 0, imageWidth, imageHeight);
 		super.render(guiGraphics, mouseX, mouseY, partialTick);
 		guiGraphics.drawString(font, ukcName, width / 2 - font.width(ukcName) / 2, topPos + 6, 4210752, false);
 		guiGraphics.drawString(font, enterPasscode, width / 2 - font.width(enterPasscode) / 2, topPos + 25, 4210752, false);
 		guiGraphics.drawString(font, confirmPasscode, width / 2 - font.width(confirmPasscode) / 2, topPos + 65, 4210752, false);
-	}
-
-	@Override
-	public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-		renderTransparentBackground(guiGraphics);
-		guiGraphics.blit(TEXTURE, leftPos, topPos, 0, 0, imageWidth, imageHeight);
 	}
 
 	@Override
@@ -99,9 +94,9 @@ public class KeyChangerScreen extends Screen {
 
 	private void confirmButtonClicked(Button button) {
 		if (passcodeProtected instanceof BlockEntity be)
-			PacketDistributor.sendToServer(new SetPasscode(be.getBlockPos(), textboxNewPasscode.getValue()));
+			SecurityCraft.CHANNEL.sendToServer(new SetPasscode(be.getBlockPos(), textboxNewPasscode.getValue()));
 		else if (passcodeProtected instanceof Entity entity)
-			PacketDistributor.sendToServer(new SetPasscode(entity.getId(), textboxNewPasscode.getValue()));
+			SecurityCraft.CHANNEL.sendToServer(new SetPasscode(entity.getId(), textboxNewPasscode.getValue()));
 
 		Minecraft.getInstance().player.closeContainer();
 		PlayerUtils.sendMessageToPlayer(Minecraft.getInstance().player, Utils.localize(SCContent.UNIVERSAL_KEY_CHANGER.get().getDescriptionId()), Utils.localize("messages.securitycraft:universalKeyChanger.passcodeChanged"), ChatFormatting.GREEN, true);

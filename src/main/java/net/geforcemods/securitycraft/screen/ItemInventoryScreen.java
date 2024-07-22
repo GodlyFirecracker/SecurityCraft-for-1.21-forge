@@ -32,20 +32,21 @@ public abstract class ItemInventoryScreen<T extends AbstractContainerMenu> exten
 
 	@Override
 	protected void renderBg(GuiGraphics guiGraphics, float partialTicks, int mouseX, int mouseY) {
+		renderBackground(guiGraphics);
 		guiGraphics.blit(texture, leftPos, topPos, 0, 0, imageWidth, imageHeight);
 	}
 
 	public static class Briefcase extends ItemInventoryScreen<BriefcaseMenu> {
 		public Briefcase(BriefcaseMenu menu, Inventory inventory, Component title) {
 			super(menu, inventory, title);
-			texture = SecurityCraft.resLoc("textures/gui/container/briefcase_inventory.png");
+			texture = new ResourceLocation(SecurityCraft.MODID, "textures/gui/container/briefcase_inventory.png");
 		}
 	}
 
 	public static class KeycardHolder extends ItemInventoryScreen<KeycardHolderMenu> {
 		public KeycardHolder(KeycardHolderMenu menu, Inventory inventory, Component title) {
 			super(menu, inventory, title);
-			texture = SecurityCraft.resLoc("textures/gui/container/keycard_holder.png");
+			texture = new ResourceLocation(SecurityCraft.MODID, "textures/gui/container/keycard_holder.png");
 			imageHeight = 133;
 		}
 	}

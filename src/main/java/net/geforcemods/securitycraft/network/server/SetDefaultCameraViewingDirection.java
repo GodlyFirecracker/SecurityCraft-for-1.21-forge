@@ -1,34 +1,41 @@
 package net.geforcemods.securitycraft.network.server;
 
-import net.geforcemods.securitycraft.SecurityCraft;
+import java.util.function.Supplier;
+
 import net.geforcemods.securitycraft.blockentities.SecurityCameraBlockEntity;
 import net.geforcemods.securitycraft.entity.camera.SecurityCamera;
 import net.geforcemods.securitycraft.misc.ModuleType;
 import net.geforcemods.securitycraft.util.Utils;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.network.NetworkEvent;
 
-public record SetDefaultCameraViewingDirection(int id, float initialXRotation, float initialYRotation) implements CustomPacketPayload {
+public class SetDefaultCameraViewingDirection {
+	private int id;
+	private float initialXRotation, initialYRotation;
 
-	public static final Type<SetDefaultCameraViewingDirection> TYPE = new Type<>(SecurityCraft.resLoc("set_default_camera_viewing_direction"));
-	//@formatter:off
-	public static final StreamCodec<RegistryFriendlyByteBuf, SetDefaultCameraViewingDirection> STREAM_CODEC = StreamCodec.composite(
-			ByteBufCodecs.VAR_INT, SetDefaultCameraViewingDirection::id,
-			ByteBufCodecs.FLOAT, SetDefaultCameraViewingDirection::initialXRotation,
-			ByteBufCodecs.FLOAT, SetDefaultCameraViewingDirection::initialYRotation,
-			SetDefaultCameraViewingDirection::new);
-	//@formatter:on
-	@Override
-	public Type<? extends CustomPacketPayload> type() {
-		return TYPE;
+	public SetDefaultCameraViewingDirection() {}
+
+	public SetDefaultCameraViewingDirection(SecurityCamera cam) {
+		id = cam.getId();
+		initialXRotation = cam.getXRot();
+		initialYRotation = cam.getYRot();
 	}
 
-	public void handle(IPayloadContext ctx) {
-		ServerPlayer player = (ServerPlayer) ctx.player();
+	public SetDefaultCameraViewingDirection(FriendlyByteBuf buf) {
+		id = buf.readVarInt();
+		initialXRotation = buf.readFloat();
+		initialYRotation = buf.readFloat();
+	}
+
+	public void encode(FriendlyByteBuf buf) {
+		buf.writeVarInt(id);
+		buf.writeFloat(initialXRotation);
+		buf.writeFloat(initialYRotation);
+	}
+
+	public void handle(Supplier<NetworkEvent.Context> ctx) {
+		ServerPlayer player = ctx.get().getSender();
 
 		if (player.getCamera() instanceof SecurityCamera camera && camera.getId() == id && camera.level().getBlockEntity(camera.blockPosition()) instanceof SecurityCameraBlockEntity be) {
 			if (!be.isOwnedBy(player)) {

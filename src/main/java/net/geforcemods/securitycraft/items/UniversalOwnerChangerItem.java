@@ -2,19 +2,18 @@ package net.geforcemods.securitycraft.items;
 
 import net.geforcemods.securitycraft.ConfigHandler;
 import net.geforcemods.securitycraft.SCContent;
+import net.geforcemods.securitycraft.api.IDisguisable;
 import net.geforcemods.securitycraft.api.IModuleInventory;
 import net.geforcemods.securitycraft.api.IOwnable;
 import net.geforcemods.securitycraft.api.Owner;
 import net.geforcemods.securitycraft.blockentities.DisplayCaseBlockEntity;
-import net.geforcemods.securitycraft.blocks.DisguisableBlock;
-import net.geforcemods.securitycraft.components.OwnerData;
 import net.geforcemods.securitycraft.misc.ModuleType;
 import net.geforcemods.securitycraft.util.IBlockMine;
 import net.geforcemods.securitycraft.util.PlayerUtils;
 import net.geforcemods.securitycraft.util.Utils;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.component.DataComponents;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionResultHolder;
@@ -27,7 +26,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.fml.loading.FMLEnvironment;
+import net.minecraftforge.fml.loading.FMLEnvironment;
 
 public class UniversalOwnerChangerItem extends Item {
 	public UniversalOwnerChangerItem(Item.Properties properties) {
@@ -61,7 +60,7 @@ public class UniversalOwnerChangerItem extends Item {
 		boolean isDefault = owner.getName().equals("owner") && owner.getUUID().equals("ownerUUID");
 
 		if (!ownable.isOwnedBy(player) && !isDefault) {
-			if (!(block instanceof IBlockMine) && (!(be.getBlockState().getBlock() instanceof DisguisableBlock db) || (((BlockItem) db.getDisguisedStack(level, pos).getItem()).getBlock() instanceof DisguisableBlock))) {
+			if (!(block instanceof IBlockMine) && (!(be.getBlockState().getBlock() instanceof IDisguisable db) || (((BlockItem) db.getDisguisedStack(level, pos).getItem()).getBlock() instanceof IDisguisable))) {
 				PlayerUtils.sendMessageToPlayer(player, Utils.localize(SCContent.UNIVERSAL_OWNER_CHANGER.get().getDescriptionId()), Utils.localize("messages.securitycraft:universalOwnerChanger.notOwned"), ChatFormatting.RED);
 				return InteractionResult.FAIL;
 			}
@@ -69,7 +68,7 @@ public class UniversalOwnerChangerItem extends Item {
 			return InteractionResult.PASS;
 		}
 
-		if (!stack.has(DataComponents.CUSTOM_NAME) && !isDefault) {
+		if (!stack.hasCustomHoverName() && !isDefault) {
 			PlayerUtils.sendMessageToPlayer(player, Utils.localize(SCContent.UNIVERSAL_OWNER_CHANGER.get().getDescriptionId()), Utils.localize("messages.securitycraft:universalOwnerChanger.noName"), ChatFormatting.RED);
 			return InteractionResult.FAIL;
 		}
@@ -109,7 +108,7 @@ public class UniversalOwnerChangerItem extends Item {
 	public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
 		ItemStack ownerChanger = player.getItemInHand(hand);
 
-		if (!ownerChanger.has(DataComponents.CUSTOM_NAME)) {
+		if (!ownerChanger.hasCustomHoverName()) {
 			PlayerUtils.sendMessageToPlayer(player, Utils.localize(SCContent.UNIVERSAL_OWNER_CHANGER.get().getDescriptionId()), Utils.localize("messages.securitycraft:universalOwnerChanger.noName"), ChatFormatting.RED);
 			return InteractionResultHolder.fail(ownerChanger);
 		}
@@ -126,7 +125,11 @@ public class UniversalOwnerChangerItem extends Item {
 		if (BriefcaseItem.isOwnedBy(briefcase, player)) {
 			String newOwner = ownerChanger.getHoverName().getString();
 
-			briefcase.set(SCContent.OWNER_DATA, new OwnerData(newOwner, PlayerUtils.isPlayerOnline(newOwner) ? PlayerUtils.getPlayerFromName(newOwner).getUUID().toString() : "ownerUUID", true));
+			if (!briefcase.hasTag())
+				briefcase.setTag(new CompoundTag());
+
+			briefcase.getTag().putString("owner", newOwner);
+			briefcase.getTag().putString("ownerUUID", PlayerUtils.isPlayerOnline(newOwner) ? PlayerUtils.getPlayerFromName(newOwner).getUUID().toString() : "ownerUUID");
 			PlayerUtils.sendMessageToPlayer(player, Utils.localize(SCContent.UNIVERSAL_OWNER_CHANGER.get().getDescriptionId()), Utils.localize("messages.securitycraft:universalOwnerChanger.changed", newOwner), ChatFormatting.GREEN);
 			return InteractionResultHolder.success(ownerChanger);
 		}

@@ -1,59 +1,39 @@
 package net.geforcemods.securitycraft.network.server;
 
-import net.geforcemods.securitycraft.SecurityCraft;
+import java.util.function.Supplier;
+
 import net.geforcemods.securitycraft.api.IOwnable;
 import net.geforcemods.securitycraft.api.IPasscodeProtected;
 import net.geforcemods.securitycraft.blockentities.KeypadChestBlockEntity;
 import net.geforcemods.securitycraft.blockentities.KeypadDoorBlockEntity;
 import net.geforcemods.securitycraft.util.PasscodeUtils;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.properties.ChestType;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.network.NetworkEvent;
 
-public class SetPasscode implements CustomPacketPayload {
-	public static final Type<SetPasscode> TYPE = new Type<>(SecurityCraft.resLoc("set_passcode"));
-	public static final StreamCodec<RegistryFriendlyByteBuf, SetPasscode> STREAM_CODEC = new StreamCodec<>() {
-		@Override
-		public SetPasscode decode(RegistryFriendlyByteBuf buf) {
-			return new SetPasscode(buf);
-		}
-
-		@Override
-		public void encode(RegistryFriendlyByteBuf buf, SetPasscode packet) {
-			boolean hasPos = packet.pos != null;
-
-			buf.writeBoolean(hasPos);
-
-			if (hasPos)
-				buf.writeBlockPos(packet.pos);
-			else
-				buf.writeVarInt(packet.entityId);
-
-			buf.writeUtf(packet.passcode);
-		}
-	};
+public class SetPasscode {
 	private BlockPos pos;
 	private int entityId;
 	private String passcode;
 
-	public SetPasscode(BlockPos pos, String passcode) {
+	public SetPasscode() {}
+
+	public SetPasscode(BlockPos pos, String code) {
 		this.pos = pos;
-		this.passcode = PasscodeUtils.hashPasscodeWithoutSalt(passcode);
+		passcode = PasscodeUtils.hashPasscodeWithoutSalt(code);
 	}
 
-	public SetPasscode(int entityId, String passcode) {
+	public SetPasscode(int entityId, String code) {
 		this.entityId = entityId;
-		this.passcode = PasscodeUtils.hashPasscodeWithoutSalt(passcode);
+		passcode = PasscodeUtils.hashPasscodeWithoutSalt(code);
 	}
 
-	private SetPasscode(RegistryFriendlyByteBuf buf) {
+	public SetPasscode(FriendlyByteBuf buf) {
 		if (buf.readBoolean())
 			pos = buf.readBlockPos();
 		else
@@ -62,13 +42,21 @@ public class SetPasscode implements CustomPacketPayload {
 		passcode = buf.readUtf(Integer.MAX_VALUE / 4);
 	}
 
-	@Override
-	public Type<? extends CustomPacketPayload> type() {
-		return TYPE;
+	public void encode(FriendlyByteBuf buf) {
+		boolean hasPos = pos != null;
+
+		buf.writeBoolean(hasPos);
+
+		if (hasPos)
+			buf.writeBlockPos(pos);
+		else
+			buf.writeVarInt(entityId);
+
+		buf.writeUtf(passcode);
 	}
 
-	public void handle(IPayloadContext ctx) {
-		Player player = ctx.player();
+	public void handle(Supplier<NetworkEvent.Context> ctx) {
+		Player player = ctx.get().getSender();
 		Level level = player.level();
 		IPasscodeProtected passcodeProtected = getPasscodeProtected(level);
 

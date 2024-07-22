@@ -10,7 +10,9 @@ import net.geforcemods.securitycraft.util.BlockUtils;
 import net.geforcemods.securitycraft.util.LevelUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Containers;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.context.BlockPlaceContext;
@@ -40,6 +42,7 @@ import net.minecraft.world.phys.shapes.BooleanOp;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
+import net.minecraftforge.network.NetworkHooks;
 
 public class ClaymoreBlock extends ExplosiveBlock implements SimpleWaterloggedBlock {
 	public static final DirectionProperty FACING = BlockStateProperties.HORIZONTAL_FACING;
@@ -56,10 +59,10 @@ public class ClaymoreBlock extends ExplosiveBlock implements SimpleWaterloggedBl
 	}
 
 	@Override
-	public InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
+	public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
 		if (level.getBlockEntity(pos) instanceof ClaymoreBlockEntity be && be.isOwnedBy(player)) {
 			if (!level.isClientSide)
-				player.openMenu(be, pos);
+				NetworkHooks.openScreen((ServerPlayer) player, be, pos);
 
 			return InteractionResult.SUCCESS;
 		}
@@ -106,7 +109,7 @@ public class ClaymoreBlock extends ExplosiveBlock implements SimpleWaterloggedBl
 	@Override
 	public void wasExploded(Level level, BlockPos pos, Explosion explosion) {
 		if (!level.isClientSide && level.getBlockState(pos).hasProperty(ClaymoreBlock.DEACTIVATED) && !level.getBlockState(pos).getValue(ClaymoreBlock.DEACTIVATED)) {
-			if (pos.equals(BlockPos.containing(explosion.center())))
+			if (pos.equals(BlockPos.containing(explosion.getPosition())))
 				return;
 
 			explode(level, pos);
@@ -153,12 +156,12 @@ public class ClaymoreBlock extends ExplosiveBlock implements SimpleWaterloggedBl
 	}
 
 	@Override
-	public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
+	public void playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
 		//prevents dropping twice the amount of modules when breaking the block in creative mode
 		if (player.isCreative() && level.getBlockEntity(pos) instanceof IModuleInventory inv)
 			inv.getInventory().clear();
 
-		return super.playerWillDestroy(level, pos, state, player);
+		super.playerWillDestroy(level, pos, state, player);
 	}
 
 	@Override

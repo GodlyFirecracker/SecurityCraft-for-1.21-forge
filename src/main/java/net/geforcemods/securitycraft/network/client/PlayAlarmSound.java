@@ -1,47 +1,19 @@
 package net.geforcemods.securitycraft.network.client;
 
-import net.geforcemods.securitycraft.SecurityCraft;
+import java.util.function.Supplier;
+
+import net.geforcemods.securitycraft.ClientHandler;
 import net.geforcemods.securitycraft.blockentities.AlarmBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.protocol.game.ClientboundSoundPacket;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.world.level.Level;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.network.NetworkEvent;
 
-public class PlayAlarmSound implements CustomPacketPayload {
-	public static final Type<PlayAlarmSound> TYPE = new Type<>(SecurityCraft.resLoc("play_alarm_sound"));
-	public static final StreamCodec<RegistryFriendlyByteBuf, PlayAlarmSound> STREAM_CODEC = new StreamCodec<>() {
-		public PlayAlarmSound decode(RegistryFriendlyByteBuf buf) {
-			PlayAlarmSound packet = new PlayAlarmSound();
-
-			packet.bePos = buf.readBlockPos();
-			packet.sound = buf.readById(BuiltInRegistries.SOUND_EVENT.asHolderIdMap()::byId);
-			packet.soundX = buf.readInt();
-			packet.soundY = buf.readInt();
-			packet.soundZ = buf.readInt();
-			packet.volume = buf.readFloat();
-			packet.pitch = buf.readFloat();
-			packet.seed = buf.readLong();
-			return packet;
-		}
-
-		@Override
-		public void encode(RegistryFriendlyByteBuf buf, PlayAlarmSound packet) {
-			buf.writeBlockPos(packet.bePos);
-			buf.writeById(BuiltInRegistries.SOUND_EVENT.asHolderIdMap()::getId, packet.sound);
-			buf.writeInt(packet.soundX);
-			buf.writeInt(packet.soundY);
-			buf.writeInt(packet.soundZ);
-			buf.writeFloat(packet.volume);
-			buf.writeFloat(packet.pitch);
-			buf.writeLong(packet.seed);
-		}
-	};
+public class PlayAlarmSound {
 	private BlockPos bePos;
 	private Holder<SoundEvent> sound;
 	private int soundX, soundY, soundZ;
@@ -61,9 +33,26 @@ public class PlayAlarmSound implements CustomPacketPayload {
 		this.seed = seed;
 	}
 
-	@Override
-	public Type<? extends CustomPacketPayload> type() {
-		return TYPE;
+	public PlayAlarmSound(FriendlyByteBuf buf) {
+		bePos = buf.readBlockPos();
+		sound = buf.readById(BuiltInRegistries.SOUND_EVENT.asHolderIdMap(), SoundEvent::readFromNetwork);
+		soundX = buf.readInt();
+		soundY = buf.readInt();
+		soundZ = buf.readInt();
+		volume = buf.readFloat();
+		pitch = buf.readFloat();
+		seed = buf.readLong();
+	}
+
+	public void encode(FriendlyByteBuf buf) {
+		buf.writeBlockPos(bePos);
+		buf.writeId(BuiltInRegistries.SOUND_EVENT.asHolderIdMap(), sound, (buffer, soundEvent) -> soundEvent.writeToNetwork(buffer));
+		buf.writeInt(soundX);
+		buf.writeInt(soundY);
+		buf.writeInt(soundZ);
+		buf.writeFloat(volume);
+		buf.writeFloat(pitch);
+		buf.writeLong(seed);
 	}
 
 	public double getX() {
@@ -78,8 +67,8 @@ public class PlayAlarmSound implements CustomPacketPayload {
 		return soundZ / ClientboundSoundPacket.LOCATION_ACCURACY;
 	}
 
-	public void handle(IPayloadContext ctx) {
-		Level level = ctx.player().level();
+	public void handle(Supplier<NetworkEvent.Context> ctx) {
+		Level level = ClientHandler.getClientLevel();
 
 		if (level.getBlockEntity(bePos) instanceof AlarmBlockEntity be)
 			be.playSound(level, getX(), getY(), getZ(), sound, volume, pitch, seed);

@@ -2,7 +2,6 @@ package net.geforcemods.securitycraft.blocks.reinforced;
 
 import java.util.function.Supplier;
 
-import net.geforcemods.securitycraft.SCContent;
 import net.geforcemods.securitycraft.api.IReinforcedBlock;
 import net.geforcemods.securitycraft.api.OwnableBlockEntity;
 import net.geforcemods.securitycraft.misc.OwnershipEvent;
@@ -17,18 +16,15 @@ import net.minecraft.world.level.block.WallBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.neoforge.common.NeoForge;
+import net.minecraftforge.common.MinecraftForge;
 
 public class ReinforcedWallBlock extends WallBlock implements IReinforcedBlock, EntityBlock {
 	private final Supplier<Block> vanillaBlockSupplier;
 
-	public ReinforcedWallBlock(Block vanillaBlock) {
-		this(SCContent.reinforcedCopy(vanillaBlock), vanillaBlock);
-	}
-
 	public ReinforcedWallBlock(BlockBehaviour.Properties properties, Block vanillaBlock) {
 		super(properties);
-		vanillaBlockSupplier = () -> vanillaBlock;
+
+		this.vanillaBlockSupplier = () -> vanillaBlock;
 	}
 
 	@Override
@@ -39,7 +35,7 @@ public class ReinforcedWallBlock extends WallBlock implements IReinforcedBlock, 
 	@Override
 	public void setPlacedBy(Level level, BlockPos pos, BlockState state, LivingEntity placer, ItemStack stack) {
 		if (placer instanceof Player player)
-			NeoForge.EVENT_BUS.post(new OwnershipEvent(level, pos, player));
+			MinecraftForge.EVENT_BUS.post(new OwnershipEvent(level, pos, player));
 	}
 
 	@Override

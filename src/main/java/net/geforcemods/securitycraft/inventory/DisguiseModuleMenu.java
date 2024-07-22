@@ -1,8 +1,9 @@
 package net.geforcemods.securitycraft.inventory;
 
 import net.geforcemods.securitycraft.SCContent;
-import net.geforcemods.securitycraft.components.SavedBlockState;
 import net.geforcemods.securitycraft.util.StandingOrWallType;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.nbt.NbtUtils;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.ClickType;
@@ -13,9 +14,11 @@ import net.minecraft.world.level.block.state.BlockState;
 
 public class DisguiseModuleMenu extends StateSelectorAccessMenu {
 	private ModuleItemContainer inventory;
+	private Inventory playerInventory;
 
 	public DisguiseModuleMenu(int windowId, Inventory playerInventory, ModuleItemContainer moduleInventory) {
 		super(SCContent.DISGUISE_MODULE_MENU.get(), windowId);
+		this.playerInventory = playerInventory;
 		inventory = moduleInventory;
 		moduleInventory.setMenu(this);
 		addSlot(new AddonSlot(inventory, 0, 80, 20));
@@ -84,21 +87,16 @@ public class DisguiseModuleMenu extends StateSelectorAccessMenu {
 
 	@Override
 	public BlockState getSavedState() {
-		return inventory.getModule().getOrDefault(SCContent.SAVED_BLOCK_STATE, SavedBlockState.EMPTY).state();
+		return NbtUtils.readBlockState(playerInventory.player.level().holderLookup(Registries.BLOCK), inventory.getModule().getOrCreateTag().getCompound("SavedState"));
 	}
 
 	@Override
 	public StandingOrWallType getStandingOrWallType() {
-		return inventory.getModule().getOrDefault(SCContent.SAVED_BLOCK_STATE, SavedBlockState.EMPTY).standingOrWallType();
+		return StandingOrWallType.values()[inventory.getModule().getOrCreateTag().getInt("StandingOrWall")];
 	}
 
 	public ModuleItemContainer getInventory() {
 		return inventory;
-	}
-
-	@Override
-	public void removed(Player player) {
-		inventory.stopOpen(player);
 	}
 
 	public static class AddonSlot extends Slot {

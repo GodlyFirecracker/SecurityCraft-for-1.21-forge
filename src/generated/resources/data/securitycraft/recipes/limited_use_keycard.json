@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "group": "securitycraft:keycards",
+  "key": {
+    "I": {
+      "tag": "forge:ingots/iron"
+    },
+    "S": {
+      "tag": "forge:gems/lapis"
+    }
+  },
+  "pattern": [
+    "III",
+    "SSS"
+  ],
+  "result": {
+    "item": "securitycraft:limited_use_keycard"
+  },
+  "show_notification": true
+}

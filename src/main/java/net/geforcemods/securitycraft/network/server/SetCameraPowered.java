@@ -1,36 +1,41 @@
 package net.geforcemods.securitycraft.network.server;
 
-import net.geforcemods.securitycraft.SecurityCraft;
+import java.util.function.Supplier;
+
 import net.geforcemods.securitycraft.api.IModuleInventory;
 import net.geforcemods.securitycraft.api.IOwnable;
 import net.geforcemods.securitycraft.blocks.SecurityCameraBlock;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.network.NetworkEvent;
 
-public record SetCameraPowered(BlockPos pos, boolean powered) implements CustomPacketPayload {
-	public static final Type<SetCameraPowered> TYPE = new Type<>(SecurityCraft.resLoc("set_camera_powered"));
-	//@formatter:off
-	public static final StreamCodec<RegistryFriendlyByteBuf, SetCameraPowered> STREAM_CODEC = StreamCodec.composite(
-			BlockPos.STREAM_CODEC, SetCameraPowered::pos,
-			ByteBufCodecs.BOOL, SetCameraPowered::powered,
-			SetCameraPowered::new);
-	//@formatter:on
+public class SetCameraPowered {
+	private BlockPos pos;
+	private boolean powered;
 
-	@Override
-	public Type<? extends CustomPacketPayload> type() {
-		return TYPE;
+	public SetCameraPowered() {}
+
+	public SetCameraPowered(BlockPos pos, boolean powered) {
+		this.pos = pos;
+		this.powered = powered;
 	}
 
-	public void handle(IPayloadContext ctx) {
-		Player player = ctx.player();
+	public SetCameraPowered(FriendlyByteBuf buf) {
+		pos = buf.readBlockPos();
+		powered = buf.readBoolean();
+	}
+
+	public void encode(FriendlyByteBuf buf) {
+		buf.writeBlockPos(pos);
+		buf.writeBoolean(powered);
+	}
+
+	public void handle(Supplier<NetworkEvent.Context> ctx) {
+		Player player = ctx.get().getSender();
 		Level level = player.level();
 		BlockEntity be = level.getBlockEntity(pos);
 

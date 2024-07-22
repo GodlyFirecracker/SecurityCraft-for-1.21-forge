@@ -1,18 +1,33 @@
 package net.geforcemods.securitycraft.misc;
 
 import net.minecraft.core.NonNullList;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializer;
 import net.minecraft.world.item.ItemStack;
 
 public class ItemStackListSerializer implements EntityDataSerializer<NonNullList<ItemStack>> {
-	public static final StreamCodec<? super RegistryFriendlyByteBuf, NonNullList<ItemStack>> STREAM_CODEC = ItemStack.OPTIONAL_STREAM_CODEC.apply(ByteBufCodecs.collection(NonNullList::createWithCapacity));
+	@Override
+	public void write(FriendlyByteBuf buf, NonNullList<ItemStack> value) {
+		buf.writeVarInt(value.size());
+		value.forEach(buf::writeItem);
+	}
 
 	@Override
-	public StreamCodec<? super RegistryFriendlyByteBuf, NonNullList<ItemStack>> codec() {
-		return STREAM_CODEC;
+	public NonNullList<ItemStack> read(FriendlyByteBuf buf) {
+		int size = buf.readVarInt();
+		NonNullList<ItemStack> modules = NonNullList.withSize(size, ItemStack.EMPTY);
+
+		for (int i = 0; i < size; i++) {
+			modules.set(i, buf.readItem());
+		}
+
+		return modules;
+	}
+
+	@Override
+	public EntityDataAccessor<NonNullList<ItemStack>> createAccessor(int id) {
+		return new EntityDataAccessor<>(id, this);
 	}
 
 	@Override

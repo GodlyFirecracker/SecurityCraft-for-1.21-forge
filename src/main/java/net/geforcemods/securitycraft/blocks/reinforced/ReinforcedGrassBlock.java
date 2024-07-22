@@ -24,8 +24,8 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.feature.configurations.TreeConfiguration;
-import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.common.util.TriState;
+import net.minecraftforge.common.IPlantable;
+import net.minecraftforge.common.MinecraftForge;
 
 public class ReinforcedGrassBlock extends GrassBlock implements IReinforcedBlock, EntityBlock {
 	public ReinforcedGrassBlock(BlockBehaviour.Properties properties) {
@@ -36,8 +36,8 @@ public class ReinforcedGrassBlock extends GrassBlock implements IReinforcedBlock
 	public void randomTick(BlockState state, ServerLevel level, BlockPos pos, RandomSource randomSource) {}
 
 	@Override
-	public TriState canSustainPlant(BlockState state, BlockGetter level, BlockPos pos, Direction facing, BlockState plant) {
-		return SCContent.REINFORCED_DIRT.get().canSustainPlant(state, level, pos, facing, plant);
+	public boolean canSustainPlant(BlockState state, BlockGetter level, BlockPos pos, Direction facing, IPlantable plantable) {
+		return SCContent.REINFORCED_DIRT.get().canSustainPlant(state, level, pos, facing, plantable);
 	}
 
 	@Override
@@ -53,7 +53,7 @@ public class ReinforcedGrassBlock extends GrassBlock implements IReinforcedBlock
 	@Override
 	public void setPlacedBy(Level level, BlockPos pos, BlockState state, LivingEntity placer, ItemStack stack) {
 		if (placer instanceof Player player)
-			NeoForge.EVENT_BUS.post(new OwnershipEvent(level, pos, player));
+			MinecraftForge.EVENT_BUS.post(new OwnershipEvent(level, pos, player));
 	}
 
 	@Override

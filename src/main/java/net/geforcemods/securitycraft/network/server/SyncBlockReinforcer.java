@@ -1,41 +1,38 @@
 package net.geforcemods.securitycraft.network.server;
 
+import java.util.function.Supplier;
+
 import net.geforcemods.securitycraft.SCContent;
-import net.geforcemods.securitycraft.SecurityCraft;
 import net.geforcemods.securitycraft.items.UniversalBlockReinforcerItem;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.util.Unit;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.network.NetworkEvent;
 
-public record SyncBlockReinforcer(boolean isReinforcing) implements CustomPacketPayload {
-	public static final Type<SyncBlockReinforcer> TYPE = new Type<>(SecurityCraft.resLoc("sync_block_reinforcer"));
-	//@formatter:off
-	public static final StreamCodec<RegistryFriendlyByteBuf, SyncBlockReinforcer> STREAM_CODEC = StreamCodec.composite(
-			ByteBufCodecs.BOOL, SyncBlockReinforcer::isReinforcing,
-			SyncBlockReinforcer::new);
-	//@formatter:on
+public class SyncBlockReinforcer {
+	private boolean isReinforcing;
 
-	@Override
-	public Type<? extends CustomPacketPayload> type() {
-		return TYPE;
+	public SyncBlockReinforcer() {}
+
+	public SyncBlockReinforcer(boolean isReinforcing) {
+		this.isReinforcing = isReinforcing;
 	}
 
-	public void handle(IPayloadContext ctx) {
-		Player player = ctx.player();
+	public SyncBlockReinforcer(FriendlyByteBuf buf) {
+		isReinforcing = buf.readBoolean();
+	}
+
+	public void encode(FriendlyByteBuf buf) {
+		buf.writeBoolean(isReinforcing);
+	}
+
+	public void handle(Supplier<NetworkEvent.Context> ctx) {
+		ServerPlayer player = ctx.get().getSender();
 		Inventory inventory = player.getInventory();
 		ItemStack reinforcer = inventory.getSelected().getItem() instanceof UniversalBlockReinforcerItem ? inventory.getSelected() : inventory.offhand.get(0);
 
-		if (!reinforcer.isEmpty() && !reinforcer.is(SCContent.UNIVERSAL_BLOCK_REINFORCER_LVL_1.get())) {
-			if (isReinforcing)
-				reinforcer.remove(SCContent.UNREINFORCING);
-			else
-				reinforcer.set(SCContent.UNREINFORCING, Unit.INSTANCE);
-		}
+		if (!reinforcer.isEmpty() && !reinforcer.is(SCContent.UNIVERSAL_BLOCK_REINFORCER_LVL_1.get()))
+			reinforcer.getOrCreateTag().putBoolean("is_unreinforcing", !isReinforcing);
 	}
 }

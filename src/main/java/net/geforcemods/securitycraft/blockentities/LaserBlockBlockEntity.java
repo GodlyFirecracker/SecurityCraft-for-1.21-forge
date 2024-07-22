@@ -9,10 +9,10 @@ import java.util.Map.Entry;
 import it.unimi.dsi.fastutil.objects.Object2BooleanArrayMap;
 import net.geforcemods.securitycraft.ConfigHandler;
 import net.geforcemods.securitycraft.SCContent;
+import net.geforcemods.securitycraft.SecurityCraft;
 import net.geforcemods.securitycraft.api.ILinkedAction;
 import net.geforcemods.securitycraft.api.LinkableBlockEntity;
 import net.geforcemods.securitycraft.api.Option;
-import net.geforcemods.securitycraft.api.Option.BooleanOption;
 import net.geforcemods.securitycraft.api.Option.DisabledOption;
 import net.geforcemods.securitycraft.api.Option.IgnoreOwnerOption;
 import net.geforcemods.securitycraft.api.Option.IntOption;
@@ -28,15 +28,12 @@ import net.geforcemods.securitycraft.items.ModuleItem;
 import net.geforcemods.securitycraft.misc.ModuleType;
 import net.geforcemods.securitycraft.network.client.UpdateLaserColors;
 import net.geforcemods.securitycraft.util.BlockUtils;
-import net.geforcemods.securitycraft.util.Utils;
 import net.minecraft.Util;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Container;
 import net.minecraft.world.ContainerListener;
 import net.minecraft.world.MenuProvider;
@@ -46,11 +43,13 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.state.properties.BooleanProperty;
-import net.neoforged.neoforge.client.model.data.ModelData;
-import net.neoforged.neoforge.items.IItemHandler;
-import net.neoforged.neoforge.items.wrapper.InvWrapper;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraftforge.client.model.data.ModelData;
+import net.minecraftforge.common.capabilities.Capability;
+import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.common.util.LazyOptional;
+import net.minecraftforge.items.IItemHandler;
+import net.minecraftforge.items.wrapper.InvWrapper;
+import net.minecraftforge.network.PacketDistributor;
 
 public class LaserBlockBlockEntity extends LinkableBlockEntity implements MenuProvider, ContainerListener {
 	private DisabledOption disabled = new DisabledOption(false) {
@@ -72,6 +71,7 @@ public class LaserBlockBlockEntity extends LinkableBlockEntity implements MenuPr
 
 		return map;
 	});
+	private LazyOptional<IItemHandler> insertOnlyHandler, lensHandler;
 	private LensContainer lenses = new LensContainer(6);
 	private long lastToggleTime;
 
@@ -81,15 +81,12 @@ public class LaserBlockBlockEntity extends LinkableBlockEntity implements MenuPr
 	}
 
 	@Override
-	public void saveAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.saveAdditional(tag, lookupProvider);
+	public void saveAdditional(CompoundTag tag) {
+		super.saveAdditional(tag);
 		tag.put("sideConfig", saveSideConfig(sideConfig));
 
 		for (int i = 0; i < lenses.getContainerSize(); i++) {
-			ItemStack lens = lenses.getItem(i);
-
-			if (!lens.isEmpty())
-				tag.put("lens" + i, lens.saveOptional(lookupProvider));
+			tag.put("lens" + i, lenses.getItem(i).save(new CompoundTag()));
 		}
 	}
 
@@ -101,12 +98,12 @@ public class LaserBlockBlockEntity extends LinkableBlockEntity implements MenuPr
 	}
 
 	@Override
-	public void loadAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.loadAdditional(tag, lookupProvider);
+	public void load(CompoundTag tag) {
+		super.load(tag);
 		sideConfig = loadSideConfig(tag.getCompound("sideConfig"));
 
 		for (int i = 0; i < lenses.getContainerSize(); i++) {
-			lenses.setItemExclusively(i, Utils.parseOptional(lookupProvider, tag.getCompound("lens" + i)));
+			lenses.setItemExclusively(i, ItemStack.of(tag.getCompound("lens" + i)));
 		}
 
 		lenses.setChanged();
@@ -127,23 +124,37 @@ public class LaserBlockBlockEntity extends LinkableBlockEntity implements MenuPr
 
 	@Override
 	protected void onLinkedBlockAction(ILinkedAction action, List<LinkableBlockEntity> excludedBEs) {
-		switch (action) {
-			case ILinkedAction.OptionChanged(BooleanOption option) when option.getName().equals(disabled.getName()) -> {
+		if (action instanceof ILinkedAction.OptionChanged<?> optionChanged) {
+			Option<?> option = optionChanged.option();
+
+			if (option.getName().equals(disabled.getName())) {
 				disabled.copy(option);
 				setLasersAccordingToDisabledOption();
 			}
-			case ILinkedAction.OptionChanged(BooleanOption option) when option.getName().equals(ignoreOwner.getName()) -> ignoreOwner.copy(option);
-			case ILinkedAction.OptionChanged(BooleanOption option) when option.getName().equals(respectInvisibility.getName()) -> respectInvisibility.copy(option);
-			case ILinkedAction.OptionChanged(IntOption option) when option.getName().equals(signalLength.getName()) -> {
+			else if (option.getName().equals(ignoreOwner.getName()))
+				ignoreOwner.copy(option);
+			else if (option.getName().equals(signalLength.getName())) {
 				signalLength.copy(option);
 				turnOffRedstoneOutput();
 			}
-			case ILinkedAction.OptionChanged(Option<?> option) -> throw new UnsupportedOperationException("Unhandled option synchronization in laser block! " + option.getName());
-			case ILinkedAction.ModuleInserted(ItemStack stack, ModuleItem module, boolean wasModuleToggled) -> insertModule(stack, wasModuleToggled);
-			case ILinkedAction.ModuleRemoved(ModuleType moduleType, boolean wasModuleToggled) -> removeModule(moduleType, wasModuleToggled);
-			case ILinkedAction.OwnerChanged(Owner newOwner) -> setOwner(newOwner.getUUID(), newOwner.getName());
-			case ILinkedAction.StateChanged(BooleanProperty property, Boolean oldValue, Boolean newValue) when property == LaserBlock.POWERED -> {
-				BlockState state = getBlockState();
+			else if (option.getName().equals(respectInvisibility.getName()))
+				respectInvisibility.copy(option);
+			else
+				throw new UnsupportedOperationException("Unhandled option synchronization in laser block! " + option.getName());
+		}
+		else if (action instanceof ILinkedAction.ModuleInserted moduleInserted)
+			insertModule(moduleInserted.stack(), moduleInserted.wasModuleToggled());
+		else if (action instanceof ILinkedAction.ModuleRemoved moduleRemoved)
+			removeModule(moduleRemoved.moduleType(), moduleRemoved.wasModuleToggled());
+		else if (action instanceof ILinkedAction.OwnerChanged ownerChanged) {
+			Owner owner = ownerChanged.newOwner();
+
+			setOwner(owner.getUUID(), owner.getName());
+		}
+		else if (action instanceof ILinkedAction.StateChanged<?> stateChanged) {
+			BlockState state = getBlockState();
+
+			if (stateChanged.property() == LaserBlock.POWERED) {
 				int signalLength = getSignalLength();
 
 				level.setBlockAndUpdate(worldPosition, state.cycle(LaserBlock.POWERED));
@@ -151,8 +162,6 @@ public class LaserBlockBlockEntity extends LinkableBlockEntity implements MenuPr
 
 				if (signalLength > 0)
 					level.scheduleTick(worldPosition, SCContent.LASER_BLOCK.get(), signalLength);
-			}
-			default -> {
 			}
 		}
 
@@ -219,7 +228,7 @@ public class LaserBlockBlockEntity extends LinkableBlockEntity implements MenuPr
 				otherLaser.getLensContainer().setItemExclusively(direction.getOpposite().ordinal(), lenses.getItem(direction.ordinal()));
 
 				if (!level.isClientSide)
-					PacketDistributor.sendToPlayersInDimension((ServerLevel) level, new UpdateLaserColors(positionsToUpdate));
+					SecurityCraft.CHANNEL.send(PacketDistributor.DIMENSION.with(() -> level.dimension()), new UpdateLaserColors(positionsToUpdate));
 
 				level.sendBlockUpdated(modifiedPos, stateAtModifiedPos, stateAtModifiedPos, 2);
 			}
@@ -229,8 +238,8 @@ public class LaserBlockBlockEntity extends LinkableBlockEntity implements MenuPr
 	}
 
 	@Override
-	public void handleUpdateTag(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.handleUpdateTag(tag, lookupProvider);
+	public void handleUpdateTag(CompoundTag tag) {
+		super.handleUpdateTag(tag);
 		DisguisableBlockEntity.onHandleUpdateTag(this);
 	}
 
@@ -244,8 +253,44 @@ public class LaserBlockBlockEntity extends LinkableBlockEntity implements MenuPr
 		}
 	}
 
-	public static IItemHandler getCapability(LaserBlockBlockEntity be, Direction side) {
-		return BlockUtils.isAllowedToExtractFromProtectedObject(side, be) ? new InvWrapper(be.lenses) : new InsertOnlyInvWrapper(be.lenses);
+	@Override
+	public <T> LazyOptional<T> getCapability(Capability<T> cap, Direction side) {
+		if (cap == ForgeCapabilities.ITEM_HANDLER)
+			return BlockUtils.isAllowedToExtractFromProtectedObject(side, this) ? getNormalHandler().cast() : getInsertOnlyHandler().cast();
+		else
+			return super.getCapability(cap, side);
+	}
+
+	@Override
+	public void invalidateCaps() {
+		if (insertOnlyHandler != null)
+			insertOnlyHandler.invalidate();
+
+		if (lensHandler != null)
+			lensHandler.invalidate();
+
+		super.invalidateCaps();
+	}
+
+	@Override
+	public void reviveCaps() {
+		insertOnlyHandler = null;
+		lensHandler = null;
+		super.reviveCaps();
+	}
+
+	private LazyOptional<IItemHandler> getInsertOnlyHandler() {
+		if (insertOnlyHandler == null)
+			insertOnlyHandler = LazyOptional.of(() -> new InsertOnlyInvWrapper(lenses));
+
+		return insertOnlyHandler;
+	}
+
+	private LazyOptional<IItemHandler> getNormalHandler() {
+		if (lensHandler == null)
+			lensHandler = LazyOptional.of(() -> new InvWrapper(lenses));
+
+		return lensHandler;
 	}
 
 	@Override
@@ -380,7 +425,7 @@ public class LaserBlockBlockEntity extends LinkableBlockEntity implements MenuPr
 			for (ModuleType type : thisInsertedModules) {
 				ItemStack thisModule = getModule(type);
 
-				if (thatInsertedModules.contains(type) && !ItemStack.isSameItemSameComponents(thisModule, that.getModule(type)))
+				if (thatInsertedModules.contains(type) && !thisModule.areShareTagsEqual(that.getModule(type)))
 					return type;
 
 				bothInsertedModules.put(thisModule.copy(), isModuleEnabled(type));

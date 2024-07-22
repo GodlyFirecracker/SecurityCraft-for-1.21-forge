@@ -6,9 +6,6 @@ import net.geforcemods.securitycraft.ConfigHandler;
 import net.geforcemods.securitycraft.SCContent;
 import net.geforcemods.securitycraft.util.TeamUtils;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.syncher.EntityDataSerializer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
@@ -20,12 +17,6 @@ import net.minecraft.world.entity.player.Player;
  * @author Geforce
  */
 public class Owner {
-	//@formatter:off
-	public static final StreamCodec<RegistryFriendlyByteBuf, Owner> STREAM_CODEC = StreamCodec.composite(
-			ByteBufCodecs.STRING_UTF8, Owner::getName,
-			ByteBufCodecs.STRING_UTF8, Owner::getUUID,
-			Owner::new);
-	//@formatter:on
 	private String ownerName = "owner";
 	private String ownerUUID = "ownerUUID";
 	private boolean validated = true;

@@ -24,7 +24,6 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.renderer.Rect2i;
-import net.minecraft.core.NonNullList;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
@@ -33,11 +32,11 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraftforge.network.PacketDistributor;
 
 public class BlockPocketManagerScreen extends AbstractContainerScreen<BlockPocketManagerMenu> implements IHasExtraAreas {
-	private static final ResourceLocation TEXTURE = SecurityCraft.resLoc("textures/gui/container/block_pocket_manager.png");
-	private static final ResourceLocation TEXTURE_STORAGE = SecurityCraft.resLoc("textures/gui/container/block_pocket_manager_storage.png");
+	private static final ResourceLocation TEXTURE = new ResourceLocation("securitycraft:textures/gui/container/block_pocket_manager.png");
+	private static final ResourceLocation TEXTURE_STORAGE = new ResourceLocation("securitycraft:textures/gui/container/block_pocket_manager_storage.png");
 	private static final ItemStack BLOCK_POCKET_WALL = new ItemStack(SCContent.BLOCK_POCKET_WALL.get());
 	private static final ItemStack REINFORCED_CHISELED_CRYSTAL_QUARTZ = new ItemStack(SCContent.REINFORCED_CHISELED_CRYSTAL_QUARTZ.get());
 	private static final ItemStack REINFORCED_CRYSTAL_QUARTZ_PILLAR = new ItemStack(SCContent.REINFORCED_CRYSTAL_QUARTZ_PILLAR.get());
@@ -186,6 +185,7 @@ public class BlockPocketManagerScreen extends AbstractContainerScreen<BlockPocke
 
 	@Override
 	protected void renderBg(GuiGraphics guiGraphics, float partialTicks, int mouseX, int mouseY) {
+		renderBackground(guiGraphics);
 		guiGraphics.blit(hasStorageModule ? TEXTURE_STORAGE : TEXTURE, leftPos, topPos, 0, 0, imageWidth, imageHeight);
 	}
 
@@ -250,24 +250,23 @@ public class BlockPocketManagerScreen extends AbstractContainerScreen<BlockPocke
 
 	private void updateMaterialInformation(boolean recalculateStoredStacks) {
 		if (recalculateStoredStacks) {
-			NonNullList<ItemStack> storage = be.getStorage();
-
 			materialCounts[0] = materialCounts[1] = materialCounts[2] = 0;
+			be.getStorageHandler().ifPresent(handler -> {
+				for (int i = 0; i < handler.getSlots(); i++) {
+					ItemStack stack = handler.getStackInSlot(i);
 
-			for (int i = 0; i < storage.size(); i++) {
-				ItemStack stack = storage.get(i);
+					if (stack.getItem() instanceof BlockItem blockItem) {
+						Block block = blockItem.getBlock();
 
-				if (stack.getItem() instanceof BlockItem blockItem) {
-					Block block = blockItem.getBlock();
-
-					if (block == SCContent.BLOCK_POCKET_WALL.get())
-						materialCounts[0] += stack.getCount();
-					else if (block == SCContent.REINFORCED_CRYSTAL_QUARTZ_PILLAR.get())
-						materialCounts[1] += stack.getCount();
-					else if (block == SCContent.REINFORCED_CHISELED_CRYSTAL_QUARTZ.get())
-						materialCounts[2] += stack.getCount();
+						if (block == SCContent.BLOCK_POCKET_WALL.get())
+							materialCounts[0] += stack.getCount();
+						else if (block == SCContent.REINFORCED_CRYSTAL_QUARTZ_PILLAR.get())
+							materialCounts[1] += stack.getCount();
+						else if (block == SCContent.REINFORCED_CHISELED_CRYSTAL_QUARTZ.get())
+							materialCounts[2] += stack.getCount();
+					}
 				}
-			}
+			});
 		}
 
 		wallsNeededOverall = (size - 2) * (size - 2) * 6;
@@ -283,7 +282,7 @@ public class BlockPocketManagerScreen extends AbstractContainerScreen<BlockPocke
 	public void toggleButtonClicked(Button button) {
 		be.setSize(size);
 		be.setEnabled(!be.isEnabled());
-		PacketDistributor.sendToServer(new ToggleBlockPocketManager(be.getBlockPos(), be.getSize(), be.isEnabled()));
+		SecurityCraft.CHANNEL.send(PacketDistributor.SERVER.noArg(), new ToggleBlockPocketManager(be, be.isEnabled()));
 		Minecraft.getInstance().player.closeContainer();
 	}
 
@@ -317,7 +316,7 @@ public class BlockPocketManagerScreen extends AbstractContainerScreen<BlockPocke
 
 	public void assembleButtonClicked(Button button) {
 		be.setSize(size);
-		PacketDistributor.sendToServer(new AssembleBlockPocket(be.getBlockPos(), be.getSize()));
+		SecurityCraft.CHANNEL.send(PacketDistributor.SERVER.noArg(), new AssembleBlockPocket(be));
 		Minecraft.getInstance().player.closeContainer();
 	}
 
@@ -340,6 +339,6 @@ public class BlockPocketManagerScreen extends AbstractContainerScreen<BlockPocke
 	}
 
 	private void sync() {
-		PacketDistributor.sendToServer(new SyncBlockPocketManager(be.getBlockPos(), be.getSize(), be.showsOutline(), be.getAutoBuildOffset(), be.getColor()));
+		SecurityCraft.CHANNEL.send(PacketDistributor.SERVER.noArg(), new SyncBlockPocketManager(be.getBlockPos(), be.getSize(), be.showsOutline(), be.getAutoBuildOffset(), be.getColor()));
 	}
 }

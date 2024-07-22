@@ -4,7 +4,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
@@ -20,7 +19,7 @@ public class SaltData extends SavedData {
 	private SaltData() {}
 
 	public static void refreshLevel(ServerLevel level) {
-		instance = level.getDataStorage().computeIfAbsent(new SavedData.Factory<>(SaltData::new, SaltData::load), "securitycraft-salts");
+		instance = level.getDataStorage().computeIfAbsent(SaltData::load, SaltData::new, "securitycraft-salts");
 	}
 
 	public static void invalidate() {
@@ -79,7 +78,7 @@ public class SaltData extends SavedData {
 		return null;
 	}
 
-	public static SaltData load(CompoundTag tag, HolderLookup.Provider lookupProvider) {
+	public static SaltData load(CompoundTag tag) {
 		SaltData saltData = new SaltData();
 		ListTag listtag = tag.getList("Salts", Tag.TAG_COMPOUND);
 
@@ -93,7 +92,7 @@ public class SaltData extends SavedData {
 	}
 
 	@Override
-	public CompoundTag save(CompoundTag tag, HolderLookup.Provider lookupProvider) {
+	public CompoundTag save(CompoundTag tag) {
 		ListTag saltTable = new ListTag();
 
 		for (Map.Entry<UUID, byte[]> saltMapping : saltMap.entrySet()) {

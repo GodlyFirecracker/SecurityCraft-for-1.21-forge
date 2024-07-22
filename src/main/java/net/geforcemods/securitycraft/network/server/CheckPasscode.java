@@ -1,6 +1,7 @@
 package net.geforcemods.securitycraft.network.server;
 
 import java.util.Arrays;
+import java.util.function.Supplier;
 
 import net.geforcemods.securitycraft.ConfigHandler;
 import net.geforcemods.securitycraft.SecurityCraft;
@@ -10,41 +11,21 @@ import net.geforcemods.securitycraft.util.PlayerUtils;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
-import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.network.NetworkEvent;
 
-public class CheckPasscode implements CustomPacketPayload {
-	public static final Type<CheckPasscode> TYPE = new Type<>(SecurityCraft.resLoc("check_passcode"));
-	public static final StreamCodec<RegistryFriendlyByteBuf, CheckPasscode> STREAM_CODEC = new StreamCodec<>() {
-		@Override
-		public CheckPasscode decode(RegistryFriendlyByteBuf buf) {
-			return new CheckPasscode(buf);
-		}
-
-		@Override
-		public void encode(RegistryFriendlyByteBuf buf, CheckPasscode packet) {
-			boolean hasPos = packet.pos != null;
-
-			buf.writeBoolean(hasPos);
-
-			if (hasPos)
-				buf.writeBlockPos(packet.pos);
-			else
-				buf.writeVarInt(packet.entityId);
-
-			buf.writeUtf(packet.passcode);
-		}
-	};
+public class CheckPasscode {
 	private BlockPos pos;
 	private int entityId;
 	private String passcode;
+
+	public CheckPasscode() {}
 
 	public CheckPasscode(BlockPos pos, String passcode) {
 		this.pos = pos;
@@ -56,7 +37,7 @@ public class CheckPasscode implements CustomPacketPayload {
 		this.passcode = PasscodeUtils.hashPasscodeWithoutSalt(passcode);
 	}
 
-	private CheckPasscode(RegistryFriendlyByteBuf buf) {
+	public CheckPasscode(FriendlyByteBuf buf) {
 		if (buf.readBoolean())
 			pos = buf.readBlockPos();
 		else
@@ -65,13 +46,21 @@ public class CheckPasscode implements CustomPacketPayload {
 		passcode = buf.readUtf(Integer.MAX_VALUE / 4);
 	}
 
-	@Override
-	public Type<? extends CustomPacketPayload> type() {
-		return TYPE;
+	public void encode(FriendlyByteBuf buf) {
+		boolean hasPos = pos != null;
+
+		buf.writeBoolean(hasPos);
+
+		if (hasPos)
+			buf.writeBlockPos(pos);
+		else
+			buf.writeVarInt(entityId);
+
+		buf.writeUtf(passcode);
 	}
 
-	public void handle(IPayloadContext ctx) {
-		Player player = ctx.player();
+	public void handle(Supplier<NetworkEvent.Context> ctx) {
+		ServerPlayer player = ctx.get().getSender();
 		IPasscodeProtected passcodeProtected = getPasscodeProtected(player.level());
 
 		if (passcodeProtected != null) {
@@ -124,6 +113,6 @@ public class CheckPasscode implements CustomPacketPayload {
 			name = entity.getType().getDescription().getString();
 		}
 
-		return String.format(logMessage, player.getGameProfile().getName(), name, new GlobalPos(level.dimension(), pos));
+		return String.format(logMessage, player.getGameProfile().getName(), name, GlobalPos.of(level.dimension(), pos));
 	}
 }

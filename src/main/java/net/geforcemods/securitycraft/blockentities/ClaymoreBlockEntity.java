@@ -18,7 +18,6 @@ import net.geforcemods.securitycraft.util.BlockUtils;
 import net.geforcemods.securitycraft.util.ITickingBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
@@ -34,14 +33,18 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
-import net.neoforged.neoforge.items.IItemHandler;
-import net.neoforged.neoforge.items.wrapper.InvWrapper;
+import net.minecraftforge.common.capabilities.Capability;
+import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.common.util.LazyOptional;
+import net.minecraftforge.items.IItemHandler;
+import net.minecraftforge.items.wrapper.InvWrapper;
 
 public class ClaymoreBlockEntity extends CustomizableBlockEntity implements ITickingBlockEntity, MenuProvider, ContainerListener, SingleLensContainer {
 	private IntOption range = new IntOption("range", 5, 1, 10, 1);
 	private IgnoreOwnerOption ignoreOwner = new IgnoreOwnerOption(true);
 	private TargetingModeOption targetingMode = new TargetingModeOption(TargetingMode.PLAYERS_AND_MOBS);
 	private RespectInvisibilityOption respectInvisibility = new RespectInvisibilityOption();
+	private LazyOptional<IItemHandler> insertOnlyHandler, lensHandler;
 	private LensContainer lens = new LensContainer(1);
 	private int cooldown = -1;
 
@@ -82,21 +85,57 @@ public class ClaymoreBlockEntity extends CustomizableBlockEntity implements ITic
 	}
 
 	@Override
-	public void saveAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.saveAdditional(tag, lookupProvider);
+	public void saveAdditional(CompoundTag tag) {
+		super.saveAdditional(tag);
 		tag.putInt("cooldown", cooldown);
-		tag.put("lens", lens.createTag(lookupProvider));
+		tag.put("lens", lens.createTag());
 	}
 
 	@Override
-	public void loadAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.loadAdditional(tag, lookupProvider);
+	public void load(CompoundTag tag) {
+		super.load(tag);
 		cooldown = tag.getInt("cooldown");
-		lens.fromTag(tag.getList("lens", Tag.TAG_COMPOUND), lookupProvider);
+		lens.fromTag(tag.getList("lens", Tag.TAG_COMPOUND));
 	}
 
-	public static IItemHandler getCapability(ClaymoreBlockEntity be, Direction side) {
-		return BlockUtils.isAllowedToExtractFromProtectedObject(side, be) ? new InvWrapper(be.lens) : new InsertOnlyInvWrapper(be.lens);
+	@Override
+	public <T> LazyOptional<T> getCapability(Capability<T> cap, Direction side) {
+		if (cap == ForgeCapabilities.ITEM_HANDLER)
+			return BlockUtils.isAllowedToExtractFromProtectedObject(side, this) ? getNormalHandler().cast() : getInsertOnlyHandler().cast();
+		else
+			return super.getCapability(cap, side);
+	}
+
+	@Override
+	public void invalidateCaps() {
+		if (insertOnlyHandler != null)
+			insertOnlyHandler.invalidate();
+
+		if (lensHandler != null)
+			lensHandler.invalidate();
+
+		super.invalidateCaps();
+	}
+
+	@Override
+	public void reviveCaps() {
+		insertOnlyHandler = null;
+		lensHandler = null;
+		super.reviveCaps();
+	}
+
+	private LazyOptional<IItemHandler> getInsertOnlyHandler() {
+		if (insertOnlyHandler == null)
+			insertOnlyHandler = LazyOptional.of(() -> new InsertOnlyInvWrapper(lens));
+
+		return insertOnlyHandler;
+	}
+
+	private LazyOptional<IItemHandler> getNormalHandler() {
+		if (lensHandler == null)
+			lensHandler = LazyOptional.of(() -> new InvWrapper(lens));
+
+		return lensHandler;
 	}
 
 	@Override
@@ -141,5 +180,10 @@ public class ClaymoreBlockEntity extends CustomizableBlockEntity implements ITic
 
 	public TargetingMode getTargetingMode() {
 		return targetingMode.get();
+	}
+
+	@Override
+	public AABB getRenderBoundingBox() {
+		return new AABB(worldPosition);
 	}
 }

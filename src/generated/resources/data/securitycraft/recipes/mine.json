@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "G": {
+      "tag": "forge:gunpowder"
+    },
+    "I": {
+      "tag": "forge:ingots/iron"
+    }
+  },
+  "pattern": [
+    " I ",
+    "IGI"
+  ],
+  "result": {
+    "count": 3,
+    "item": "securitycraft:mine"
+  },
+  "show_notification": true
+}

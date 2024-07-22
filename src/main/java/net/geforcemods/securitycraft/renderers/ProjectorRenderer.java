@@ -18,12 +18,10 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.AABB;
-import net.neoforged.neoforge.client.model.data.ModelData;
-import net.neoforged.neoforge.common.util.TriPredicate;
+import net.minecraftforge.client.model.data.ModelData;
+import net.minecraftforge.common.util.TriPredicate;
 
 public class ProjectorRenderer implements BlockEntityRenderer<ProjectorBlockEntity> {
-	public static final int RENDER_DISTANCE = 100;
 	private final TriPredicate<ProjectorBlockEntity, Boolean, Integer> yLoopBoundary = (be, hanging, y) -> hanging ? y > -be.getProjectionHeight() : y < be.getProjectionHeight();
 
 	public ProjectorRenderer(BlockEntityRendererProvider.Context ctx) {}
@@ -84,25 +82,21 @@ public class ProjectorRenderer implements BlockEntityRenderer<ProjectorBlockEnti
 	private BlockPos translateProjection(BlockPos bePos, PoseStack pose, Direction direction, int x, int y, double distance, double offset) {
 		BlockPos pos = null;
 
-		switch (direction) {
-			case NORTH:
-				pos = BlockPos.containing(bePos.getX() + x + offset, bePos.getY() + y, bePos.getZ() + distance);
-				pose.translate(0.0D + x + offset, 0.0D + y, distance);
-				break;
-			case SOUTH:
-				pos = BlockPos.containing(bePos.getX() + x + offset, bePos.getY() + y, bePos.getZ() + -distance);
-				pose.translate(0.0D + x + offset, 0.0D + y, -distance);
-				break;
-			case WEST:
-				pos = BlockPos.containing(bePos.getX() + distance, bePos.getY() + y, bePos.getZ() + x + offset);
-				pose.translate(distance, 0.0D + y, 0.0D + x + offset);
-				break;
-			case EAST:
-				pos = BlockPos.containing(bePos.getX() + -distance, bePos.getY() + y, bePos.getZ() + x + offset);
-				pose.translate(-distance, 0.0D + y, 0.0D + x + offset);
-				break;
-			default:
-				break;
+		if (direction == Direction.NORTH) {
+			pos = BlockPos.containing(bePos.getX() + x + offset, bePos.getY() + y, bePos.getZ() + distance);
+			pose.translate(0.0D + x + offset, 0.0D + y, distance);
+		}
+		else if (direction == Direction.SOUTH) {
+			pos = BlockPos.containing(bePos.getX() + x + offset, bePos.getY() + y, bePos.getZ() + -distance);
+			pose.translate(0.0D + x + offset, 0.0D + y, -distance);
+		}
+		else if (direction == Direction.WEST) {
+			pos = BlockPos.containing(bePos.getX() + distance, bePos.getY() + y, bePos.getZ() + x + offset);
+			pose.translate(distance, 0.0D + y, 0.0D + x + offset);
+		}
+		else if (direction == Direction.EAST) {
+			pos = BlockPos.containing(bePos.getX() + -distance, bePos.getY() + y, bePos.getZ() + x + offset);
+			pose.translate(-distance, 0.0D + y, 0.0D + x + offset);
 		}
 
 		return pos;
@@ -111,10 +105,5 @@ public class ProjectorRenderer implements BlockEntityRenderer<ProjectorBlockEnti
 	@Override
 	public boolean shouldRenderOffScreen(ProjectorBlockEntity be) {
 		return true;
-	}
-
-	@Override
-	public AABB getRenderBoundingBox(ProjectorBlockEntity be) {
-		return new AABB(be.getBlockPos()).inflate(RENDER_DISTANCE);
 	}
 }

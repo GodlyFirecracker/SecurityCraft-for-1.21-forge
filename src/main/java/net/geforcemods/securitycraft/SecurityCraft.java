@@ -35,6 +35,7 @@ import net.geforcemods.securitycraft.misc.SCManualPage;
 import net.geforcemods.securitycraft.util.HasManualPage;
 import net.geforcemods.securitycraft.util.Reinforced;
 import net.geforcemods.securitycraft.util.Utils;
+import net.minecraft.Util;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
@@ -44,23 +45,25 @@ import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.ItemLike;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
-import net.neoforged.bus.api.IEventBus;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.InterModComms;
-import net.neoforged.fml.ModContainer;
-import net.neoforged.fml.ModList;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.fml.common.EventBusSubscriber.Bus;
-import net.neoforged.fml.common.Mod;
-import net.neoforged.fml.config.ModConfig;
-import net.neoforged.fml.event.lifecycle.InterModEnqueueEvent;
-import net.neoforged.fml.event.lifecycle.InterModProcessEvent;
-import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.common.world.chunk.RegisterTicketControllersEvent;
-import net.neoforged.neoforge.common.world.chunk.TicketController;
-import net.neoforged.neoforge.event.RegisterCommandsEvent;
-import net.neoforged.neoforge.registries.DeferredBlock;
-import net.neoforged.neoforge.registries.DeferredHolder;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.common.world.ForgeChunkManager;
+import net.minecraftforge.event.RegisterCommandsEvent;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.InterModComms;
+import net.minecraftforge.fml.ModList;
+import net.minecraftforge.fml.ModLoadingContext;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.common.Mod.EventBusSubscriber;
+import net.minecraftforge.fml.common.Mod.EventBusSubscriber.Bus;
+import net.minecraftforge.fml.config.ModConfig;
+import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.minecraftforge.fml.event.lifecycle.InterModEnqueueEvent;
+import net.minecraftforge.fml.event.lifecycle.InterModProcessEvent;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraftforge.network.NetworkRegistry;
+import net.minecraftforge.network.simple.SimpleChannel;
+import net.minecraftforge.registries.RegistryObject;
 
 @Mod(SecurityCraft.MODID)
 @EventBusSubscriber(modid = SecurityCraft.MODID, bus = Bus.MOD)
@@ -69,25 +72,23 @@ public class SecurityCraft {
 	public static final String MODID = "securitycraft";
 	public static final GameRules.Key<GameRules.BooleanValue> RULE_FAKE_WATER_SOURCE_CONVERSION = GameRules.register("fakeWaterSourceConversion", GameRules.Category.UPDATES, GameRules.BooleanValue.create(true));
 	public static final GameRules.Key<GameRules.BooleanValue> RULE_FAKE_LAVA_SOURCE_CONVERSION = GameRules.register("fakeLavaSourceConversion", GameRules.Category.UPDATES, GameRules.BooleanValue.create(false));
+	public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(new ResourceLocation(MODID, MODID), () -> getVersion(), getVersion()::equals, getVersion()::equals);
 	public static final Random RANDOM = new Random();
-	public static final TicketController CAMERA_TICKET_CONTROLLER = new TicketController(resLoc("camera_chunks"), (level, ticketHelper) -> { //this will only check against SecurityCraft's camera chunks, so no need to add an (instanceof SecurityCamera) somewhere
-		ticketHelper.getEntityTickets().forEach(((uuid, chunk) -> {
-			if (level.getEntity(uuid) == null)
-				ticketHelper.removeAllTickets(uuid);
-		}));
-	});
-	//TODO: Support Sodium when it gets released for NeoForge
-	public static final boolean IS_EMBEDDIUM_INSTALLED = ModList.get().isLoaded("embeddium");
+	public static final boolean IS_A_SODIUM_MOD_INSTALLED = Util.make(() -> {
+		ModList modList = ModList.get();
 
-	public SecurityCraft(IEventBus modEventBus, ModContainer container) {
-		NeoForge.EVENT_BUS.addListener(this::registerCommands);
-		NeoForge.EVENT_BUS.addListener(RegistrationHandler::registerBrewingRecipes);
-		container.registerConfig(ModConfig.Type.CLIENT, ConfigHandler.CLIENT_SPEC);
-		container.registerConfig(ModConfig.Type.SERVER, ConfigHandler.SERVER_SPEC);
+		return modList.isLoaded("embeddium") || modList.isLoaded("rubidium") || modList.isLoaded("sodium");
+	});
+
+	public SecurityCraft() {
+		IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+
+		MinecraftForge.EVENT_BUS.addListener(this::registerCommands);
+		ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, ConfigHandler.CLIENT_SPEC);
+		ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, ConfigHandler.SERVER_SPEC);
 		SCContent.BLOCKS.register(modEventBus);
 		SCContent.BLOCK_ENTITY_TYPES.register(modEventBus);
 		SCContent.COMMAND_ARGUMENT_TYPES.register(modEventBus);
-		SCContent.DATA_COMPONENTS.register(modEventBus);
 		SCContent.DATA_SERIALIZERS.register(modEventBus);
 		SCContent.ENTITY_TYPES.register(modEventBus);
 		SCContent.FLUIDS.register(modEventBus);
@@ -97,6 +98,12 @@ public class SecurityCraft {
 		SCContent.PARTICLE_TYPES.register(modEventBus);
 		SCContent.RECIPE_SERIALIZERS.register(modEventBus);
 		SCCreativeModeTabs.CREATIVE_MODE_TABS.register(modEventBus);
+	}
+
+	@SubscribeEvent
+	public static void onFMLCommonSetup(FMLCommonSetupEvent event) { //stage 1
+		RegistrationHandler.registerPackets();
+		RegistrationHandler.registerFakeLiquidRecipes();
 	}
 
 	@SubscribeEvent
@@ -124,12 +131,13 @@ public class SecurityCraft {
 	@SubscribeEvent
 	public static void onInterModProcess(InterModProcessEvent event) { //stage 4
 		collectSCContentData();
+		ForgeChunkManager.setForcedChunkLoadingCallback(SecurityCraft.MODID, (level, ticketHelper) -> { //this will only check against SecurityCraft's camera chunks, so no need to add an (instanceof SecurityCamera) somewhere
+			ticketHelper.getEntityTickets().forEach(((uuid, chunk) -> {
+				if (level.getEntity(uuid) == null)
+					ticketHelper.removeAllTickets(uuid);
+			}));
+		});
 		IReinforcedCauldronInteraction.bootStrap();
-	}
-
-	@SubscribeEvent
-	public static void onRegisterTicketControllers(RegisterTicketControllersEvent event) {
-		event.register(CAMERA_TICKET_CONTROLLER);
 	}
 
 	public static void collectSCContentData() {
@@ -138,7 +146,7 @@ public class SecurityCraft {
 		for (Field field : SCContent.class.getFields()) {
 			try {
 				if (field.isAnnotationPresent(Reinforced.class)) {
-					Block block = ((DeferredBlock<Block>) field.get(null)).get();
+					Block block = ((RegistryObject<Block>) field.get(null)).get();
 					IReinforcedBlock rb = (IReinforcedBlock) block;
 
 					IReinforcedBlock.VANILLA_TO_SECURITYCRAFT.put(rb.getVanillaBlock(), block);
@@ -146,7 +154,7 @@ public class SecurityCraft {
 				}
 
 				if (field.isAnnotationPresent(HasManualPage.class)) {
-					Object o = ((DeferredHolder<?, ?>) field.get(null)).get();
+					Object o = ((RegistryObject<?>) field.get(null)).get();
 					HasManualPage hmp = field.getAnnotation(HasManualPage.class);
 					Item item = ((ItemLike) o).asItem();
 					PageGroup group = hmp.value();
@@ -187,13 +195,5 @@ public class SecurityCraft {
 
 	public static String getVersion() {
 		return "v" + ModList.get().getModContainerById(MODID).get().getModInfo().getVersion().toString();
-	}
-
-	public static ResourceLocation resLoc(String path) {
-		return ResourceLocation.fromNamespaceAndPath(MODID, path);
-	}
-
-	public static ResourceLocation mcResLoc(String path) {
-		return ResourceLocation.withDefaultNamespace(path);
 	}
 }

@@ -1,11 +1,9 @@
 package net.geforcemods.securitycraft.items;
 
 import net.geforcemods.securitycraft.entity.SecuritySeaBoat;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
-import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.vehicle.Boat;
 import net.minecraft.world.item.BoatItem;
@@ -33,14 +31,9 @@ public class SecuritySeaBoatItem extends BoatItem {
 	}
 
 	@Override
-	public Boat getBoat(Level level, HitResult hitResult, ItemStack stack, Player player) {
+	public Boat getBoat(Level level, HitResult hitResult) {
 		Vec3 vec3 = hitResult.getLocation();
-		SecuritySeaBoat boat = new SecuritySeaBoat(level, vec3.x, vec3.y, vec3.z);
 
-		if (level instanceof ServerLevel serverLevel)
-			EntityType.createDefaultStackConfig(serverLevel, stack, player).accept(boat);
-
-		boat.setOwner(player);
-		return boat;
+		return new SecuritySeaBoat(level, vec3.x, vec3.y, vec3.z);
 	}
 }

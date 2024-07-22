@@ -87,7 +87,7 @@ public class ReinforcedDoorBlock extends OwnableBlock {
 	}
 
 	@Override
-	public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
+	public void playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
 		if (!level.isClientSide && player.isCreative()) {
 			DoubleBlockHalf doorHalf = state.getValue(HALF);
 
@@ -102,11 +102,11 @@ public class ReinforcedDoorBlock extends OwnableBlock {
 			}
 		}
 
-		return super.playerWillDestroy(level, pos, state, player);
+		super.playerWillDestroy(level, pos, state, player);
 	}
 
 	@Override
-	public boolean isPathfindable(BlockState state, PathComputationType type) {
+	public boolean isPathfindable(BlockState state, BlockGetter level, BlockPos pos, PathComputationType type) {
 		return switch (type) {
 			case LAND -> state.getValue(OPEN);
 			case AIR -> state.getValue(OPEN);
@@ -287,7 +287,7 @@ public class ReinforcedDoorBlock extends OwnableBlock {
 	}
 
 	@Override
-	public ItemStack getCloneItemStack(LevelReader level, BlockPos pos, BlockState state) {
+	public ItemStack getCloneItemStack(BlockGetter level, BlockPos pos, BlockState state) {
 		return new ItemStack(SCContent.REINFORCED_DOOR_ITEM.get());
 	}
 

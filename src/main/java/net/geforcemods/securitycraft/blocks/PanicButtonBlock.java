@@ -4,6 +4,7 @@ import net.geforcemods.securitycraft.api.OwnableBlockEntity;
 import net.geforcemods.securitycraft.misc.OwnershipEvent;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -29,7 +30,7 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
-import net.neoforged.neoforge.common.NeoForge;
+import net.minecraftforge.common.MinecraftForge;
 
 public class PanicButtonBlock extends ButtonBlock implements EntityBlock, SimpleWaterloggedBlock {
 	public static final BooleanProperty WATERLOGGED = BlockStateProperties.WATERLOGGED;
@@ -50,8 +51,8 @@ public class PanicButtonBlock extends ButtonBlock implements EntityBlock, Simple
 	private static final VoxelShape CEILING_EW_POWERED = Block.box(5, 15, 3, 11, 16, 13);
 	private static final VoxelShape CEILING_EW_UNPOWERED = Block.box(5, 14, 3, 11, 16, 13);
 
-	public PanicButtonBlock(BlockBehaviour.Properties properties, BlockSetType blockSetType, int ticksToStayPressed) {
-		super(blockSetType, ticksToStayPressed, properties);
+	public PanicButtonBlock(BlockBehaviour.Properties properties, BlockSetType blockSetType, int ticksToStayPressed, boolean arrowsCanPush) {
+		super(properties, blockSetType, ticksToStayPressed, arrowsCanPush);
 		registerDefaultState(defaultBlockState().setValue(WATERLOGGED, false));
 	}
 
@@ -68,11 +69,11 @@ public class PanicButtonBlock extends ButtonBlock implements EntityBlock, Simple
 	@Override
 	public void setPlacedBy(Level level, BlockPos pos, BlockState state, LivingEntity placer, ItemStack stack) {
 		if (placer instanceof Player player)
-			NeoForge.EVENT_BUS.post(new OwnershipEvent(level, pos, player));
+			MinecraftForge.EVENT_BUS.post(new OwnershipEvent(level, pos, player));
 	}
 
 	@Override
-	public InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
+	public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
 		boolean newPowered = !state.getValue(POWERED);
 
 		level.setBlockAndUpdate(pos, state.setValue(POWERED, newPowered));
@@ -82,6 +83,7 @@ public class PanicButtonBlock extends ButtonBlock implements EntityBlock, Simple
 			case CEILING -> Direction.DOWN;
 			case FLOOR -> Direction.UP;
 		});
+
 		return InteractionResult.SUCCESS;
 	}
 

@@ -2,6 +2,7 @@ package net.geforcemods.securitycraft;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -22,16 +23,15 @@ import net.geforcemods.securitycraft.api.LinkableBlockEntity;
 import net.geforcemods.securitycraft.api.Owner;
 import net.geforcemods.securitycraft.api.SecurityCraftAPI;
 import net.geforcemods.securitycraft.blockentities.BlockChangeDetectorBlockEntity.DetectionMode;
-import net.geforcemods.securitycraft.blockentities.ReinforcedLecternBlockEntity;
 import net.geforcemods.securitycraft.blockentities.RiftStabilizerBlockEntity;
 import net.geforcemods.securitycraft.blockentities.RiftStabilizerBlockEntity.TeleportationType;
 import net.geforcemods.securitycraft.blockentities.SecurityCameraBlockEntity;
 import net.geforcemods.securitycraft.blockentities.SonicSecuritySystemBlockEntity;
+import net.geforcemods.securitycraft.blockentities.SonicSecuritySystemBlockEntity.NoteWrapper;
 import net.geforcemods.securitycraft.blocks.DisplayCaseBlock;
 import net.geforcemods.securitycraft.blocks.RiftStabilizerBlock;
 import net.geforcemods.securitycraft.blocks.SecurityCameraBlock;
 import net.geforcemods.securitycraft.blocks.reinforced.ReinforcedCarpetBlock;
-import net.geforcemods.securitycraft.components.Notes.NoteWrapper;
 import net.geforcemods.securitycraft.entity.camera.CameraNightVisionEffectInstance;
 import net.geforcemods.securitycraft.entity.camera.SecurityCamera;
 import net.geforcemods.securitycraft.entity.sentry.Sentry;
@@ -43,6 +43,7 @@ import net.geforcemods.securitycraft.misc.ModuleType;
 import net.geforcemods.securitycraft.misc.OwnershipEvent;
 import net.geforcemods.securitycraft.misc.SCSounds;
 import net.geforcemods.securitycraft.misc.SaltData;
+import net.geforcemods.securitycraft.network.client.SendTip;
 import net.geforcemods.securitycraft.util.BlockUtils;
 import net.geforcemods.securitycraft.util.LevelUtils;
 import net.geforcemods.securitycraft.util.PasscodeUtils;
@@ -58,10 +59,8 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
-import net.minecraft.stats.Stats;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.ItemInteractionResult;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
@@ -76,7 +75,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.LecternBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.SkullBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -84,39 +82,40 @@ import net.minecraft.world.level.block.state.properties.NoteBlockInstrument;
 import net.minecraft.world.level.gameevent.GameEvent;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.bus.api.EventPriority;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.common.util.TriState;
-import net.neoforged.neoforge.event.entity.EntityMountEvent;
-import net.neoforged.neoforge.event.entity.EntityTeleportEvent;
-import net.neoforged.neoforge.event.entity.living.LivingChangeTargetEvent;
-import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
-import net.neoforged.neoforge.event.entity.living.LivingDestroyBlockEvent;
-import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
-import net.neoforged.neoforge.event.entity.player.PlayerEvent.PlayerLoggedOutEvent;
-import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
-import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent.LeftClickBlock;
-import net.neoforged.neoforge.event.entity.player.UseItemOnBlockEvent;
-import net.neoforged.neoforge.event.entity.player.UseItemOnBlockEvent.UsePhase;
-import net.neoforged.neoforge.event.furnace.FurnaceFuelBurnTimeEvent;
-import net.neoforged.neoforge.event.level.BlockEvent;
-import net.neoforged.neoforge.event.level.LevelEvent;
-import net.neoforged.neoforge.event.level.NoteBlockEvent;
-import net.neoforged.neoforge.event.server.ServerAboutToStartEvent;
-import net.neoforged.neoforge.event.server.ServerStoppedEvent;
-import net.neoforged.neoforge.event.tick.ServerTickEvent;
+import net.minecraftforge.event.TickEvent.Phase;
+import net.minecraftforge.event.TickEvent.ServerTickEvent;
+import net.minecraftforge.event.entity.EntityMountEvent;
+import net.minecraftforge.event.entity.EntityTeleportEvent;
+import net.minecraftforge.event.entity.living.LivingAttackEvent;
+import net.minecraftforge.event.entity.living.LivingChangeTargetEvent;
+import net.minecraftforge.event.entity.living.LivingDestroyBlockEvent;
+import net.minecraftforge.event.entity.living.LivingHurtEvent;
+import net.minecraftforge.event.entity.player.PlayerEvent.PlayerLoggedInEvent;
+import net.minecraftforge.event.entity.player.PlayerEvent.PlayerLoggedOutEvent;
+import net.minecraftforge.event.entity.player.PlayerInteractEvent;
+import net.minecraftforge.event.entity.player.PlayerInteractEvent.LeftClickBlock;
+import net.minecraftforge.event.furnace.FurnaceFuelBurnTimeEvent;
+import net.minecraftforge.event.level.BlockEvent;
+import net.minecraftforge.event.level.LevelEvent;
+import net.minecraftforge.event.level.NoteBlockEvent;
+import net.minecraftforge.event.server.ServerAboutToStartEvent;
+import net.minecraftforge.event.server.ServerStoppedEvent;
+import net.minecraftforge.eventbus.api.Event.Result;
+import net.minecraftforge.eventbus.api.EventPriority;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod.EventBusSubscriber;
+import net.minecraftforge.network.PacketDistributor;
 
 @EventBusSubscriber(modid = SecurityCraft.MODID)
 public class SCEventHandler {
 	private static final Integer NOTE_DELAY = 9;
-	public static final Map<Player, MutablePair<Integer, List<NoteWrapper>>> PLAYING_TUNES = new HashMap<>();
+	public static final Map<Player, MutablePair<Integer, Deque<NoteWrapper>>> PLAYING_TUNES = new HashMap<>();
 
 	private SCEventHandler() {}
 
 	@SubscribeEvent
-	public static void onServerTickPre(ServerTickEvent.Pre event) {
-		if (!event.getServer().tickRateManager().isFrozen() || event.getServer().tickRateManager().isSteppingForward()) {
+	public static void onServerTick(ServerTickEvent event) {
+		if (event.phase == Phase.END) {
 			PLAYING_TUNES.forEach((player, pair) -> {
 				int ticksRemaining = pair.getLeft();
 
@@ -126,23 +125,20 @@ public class SCEventHandler {
 						return;
 					}
 
-					if (!pair.getRight().isEmpty()) {
-						NoteWrapper note = pair.getRight().removeFirst();
+					NoteWrapper note = pair.getRight().poll();
 
-						if (note != null) {
-							NoteBlockInstrument instrument = NoteBlockInstrument.valueOf(note.instrumentName().toUpperCase());
-							SoundEvent sound = instrument.hasCustomSound() && !note.customSound().isEmpty() ? SoundEvent.createVariableRangeEvent(ResourceLocation.parse(note.customSound())) : instrument.getSoundEvent().value();
-							float pitch = instrument.isTunable() ? (float) Math.pow(2.0D, (note.id() - 12) / 12.0D) : 1.0F;
+					if (note != null) {
+						NoteBlockInstrument instrument = NoteBlockInstrument.valueOf(note.instrumentName().toUpperCase());
+						SoundEvent sound = instrument.hasCustomSound() && !note.customSoundId().isEmpty() ? SoundEvent.createVariableRangeEvent(new ResourceLocation(note.customSoundId())) : instrument.getSoundEvent().get();
+						float pitch = instrument.isTunable() ? (float) Math.pow(2.0D, (note.noteID() - 12) / 12.0D) : 1.0F;
 
-							player.level().playSound(null, player.blockPosition(), sound, SoundSource.RECORDS, 3.0F, pitch);
-							handlePlayedNote(player.level(), player.blockPosition(), note.id(), instrument, note.customSound());
-							player.gameEvent(GameEvent.NOTE_BLOCK_PLAY);
-							pair.setLeft(NOTE_DELAY);
-							return;
-						}
+						player.level().playSound(null, player.blockPosition(), sound, SoundSource.RECORDS, 3.0F, pitch);
+						handlePlayedNote(player.level(), player.blockPosition(), note.noteID(), instrument, note.customSoundId());
+						player.gameEvent(GameEvent.NOTE_BLOCK_PLAY);
+						pair.setLeft(NOTE_DELAY);
 					}
-
-					pair.setLeft(-1);
+					else
+						pair.setLeft(-1);
 				}
 				else
 					pair.setLeft(ticksRemaining - 1);
@@ -150,7 +146,7 @@ public class SCEventHandler {
 
 			//remove finished tunes
 			if (PLAYING_TUNES.size() > 0) {
-				Iterator<Entry<Player, MutablePair<Integer, List<NoteWrapper>>>> entries = PLAYING_TUNES.entrySet().iterator();
+				Iterator<Entry<Player, MutablePair<Integer, Deque<NoteWrapper>>>> entries = PLAYING_TUNES.entrySet().iterator();
 
 				while (entries.hasNext()) {
 					if (entries.next().getValue().left == -1)
@@ -158,6 +154,12 @@ public class SCEventHandler {
 				}
 			}
 		}
+	}
+
+	@SubscribeEvent
+	public static void onPlayerLoggedIn(PlayerLoggedInEvent event) {
+		if (!ConfigHandler.SERVER.disableThanksMessage.get())
+			SecurityCraft.CHANNEL.send(PacketDistributor.PLAYER.with(() -> (ServerPlayer) event.getEntity()), new SendTip());
 	}
 
 	@SubscribeEvent
@@ -198,20 +200,24 @@ public class SCEventHandler {
 	}
 
 	@SubscribeEvent
-	public static void onLivingAttacked(LivingIncomingDamageEvent event) {
+	public static void onLivingAttacked(LivingAttackEvent event) {
 		if (event.getEntity() instanceof ServerPlayer player) {
 			Level level = player.level();
 			DamageSource damageSource = event.getSource();
 
 			if (!player.isCreative() && damageSource.equals(level.damageSources().inWall()) && !player.isInvulnerableTo(damageSource) && BlockUtils.isInsideUnownedReinforcedBlocks(level, player, player.getEyePosition(), player.getBbWidth())) {
-				player.hurt(CustomDamageSources.inReinforcedWall(level.registryAccess()), 10.0F);
-				event.setCanceled(true);
+				int reinforcedSuffocationDamage = ConfigHandler.SERVER.reinforcedSuffocationDamage.get();
+
+				if (reinforcedSuffocationDamage != -1) {
+					player.hurt(CustomDamageSources.inReinforcedWall(level.registryAccess()), reinforcedSuffocationDamage);
+					event.setCanceled(true);
+				}
 			}
 		}
 	}
 
 	@SubscribeEvent
-	public static void onDamageTaken(LivingDamageEvent.Post event) {
+	public static void onDamageTaken(LivingHurtEvent event) {
 		LivingEntity entity = event.getEntity();
 		Level level = entity.level();
 
@@ -242,31 +248,6 @@ public class SCEventHandler {
 		}
 	}
 
-	@SubscribeEvent
-	public static void onUseItemOnBlock(UseItemOnBlockEvent event) {
-		if (event.getUsePhase() == UsePhase.ITEM_AFTER_BLOCK) {
-			ItemStack stack = event.getItemStack();
-
-			if (stack.is(Items.WRITABLE_BOOK) || stack.is(Items.WRITTEN_BOOK)) {
-				Level level = event.getLevel();
-				BlockPos pos = event.getPos();
-				BlockState state = level.getBlockState(pos);
-
-				if (state.is(SCContent.REINFORCED_LECTERN.get())) {
-					ReinforcedLecternBlockEntity be = (ReinforcedLecternBlockEntity) level.getBlockEntity(pos);
-					Player player = event.getPlayer();
-
-					if (be.isOwnedBy(player) && LecternBlock.tryPlaceBook(player, level, pos, state, stack)) {
-						player.awardStat(Stats.ITEM_USED.get(stack.getItem()));
-						event.setCancellationResult(ItemInteractionResult.sidedSuccess(level.isClientSide));
-					}
-
-					event.setCanceled(true);
-				}
-			}
-		}
-	}
-
 	//disallow rightclicking doors, fixes wrenches from other mods being able to switch their state
 	@SubscribeEvent(priority = EventPriority.HIGHEST)
 	public static void highestPriorityOnRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
@@ -276,7 +257,7 @@ public class SCEventHandler {
 			Block block = event.getLevel().getBlockState(event.getPos()).getBlock();
 
 			if (block == SCContent.KEYPAD_DOOR.get())
-				event.setUseItem(TriState.FALSE);
+				event.setUseItem(Result.DENY);
 			else if (block == SCContent.REINFORCED_DOOR.get() || block == SCContent.REINFORCED_IRON_TRAPDOOR.get() || block == SCContent.SCANNER_DOOR.get())
 				event.setCanceled(true);
 		}
@@ -344,8 +325,8 @@ public class SCEventHandler {
 			if (heldItem.is(SCContent.KEY_PANEL.get()) && (!(be instanceof IOwnable ownable) || ownable.isOwnedBy(player))) {
 				for (IPasscodeConvertible pc : SecurityCraftAPI.getRegisteredPasscodeConvertibles()) {
 					if (pc.isUnprotectedBlock(state)) {
-						event.setUseBlock(TriState.FALSE);
-						event.setUseItem(TriState.TRUE);
+						event.setUseBlock(Result.DENY);
+						event.setUseItem(Result.ALLOW);
 					}
 				}
 
@@ -360,8 +341,8 @@ public class SCEventHandler {
 		}
 
 		if (block instanceof DisplayCaseBlock && player.isShiftKeyDown() && player.getMainHandItem().isEmpty() && !player.getOffhandItem().isEmpty()) {
-			event.setUseBlock(TriState.TRUE);
-			event.setUseItem(TriState.FALSE);
+			event.setUseBlock(Result.ALLOW);
+			event.setUseItem(Result.DENY);
 			return;
 		}
 
@@ -386,7 +367,7 @@ public class SCEventHandler {
 		BlockPos pos = event.getPos();
 
 		if (held == SCContent.UNIVERSAL_BLOCK_REINFORCER_LVL_1.get() || held == SCContent.UNIVERSAL_BLOCK_REINFORCER_LVL_2.get() || held == SCContent.UNIVERSAL_BLOCK_REINFORCER_LVL_3.get()) {
-			UniversalBlockReinforcerItem.maybeRemoveMending(level.registryAccess(), stack);
+			UniversalBlockReinforcerItem.maybeRemoveMending(stack);
 
 			if (UniversalBlockReinforcerItem.convertBlock(level.getBlockState(pos), level, stack, pos, event.getEntity()))
 				event.setCanceled(true); //When the client knows that a block will be converted on the server, it should not destroy that block (e.g. via instamining)
@@ -465,7 +446,7 @@ public class SCEventHandler {
 
 	@SubscribeEvent
 	public static void onLivingSetAttackTarget(LivingChangeTargetEvent event) {
-		if (event.getNewAboutToBeSetTarget() instanceof Sentry)
+		if (event.getNewTarget() instanceof Sentry)
 			event.setCanceled(true);
 	}
 

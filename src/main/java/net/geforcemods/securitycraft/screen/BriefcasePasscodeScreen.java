@@ -15,13 +15,12 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 public class BriefcasePasscodeScreen extends Screen {
 	public static final String UP_ARROW = "\u2191";
 	public static final String RIGHT_ARROW = "\u2192";
 	public static final String DOWN_ARROW = "\u2193";
-	private static final ResourceLocation TEXTURE = SecurityCraft.resLoc("textures/gui/container/blank.png");
+	private static final ResourceLocation TEXTURE = new ResourceLocation("securitycraft:textures/gui/container/blank.png");
 	private final boolean isSetup;
 	private int imageWidth = 176;
 	private int imageHeight = 166;
@@ -60,14 +59,10 @@ public class BriefcasePasscodeScreen extends Screen {
 
 	@Override
 	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+		renderBackground(guiGraphics);
+		guiGraphics.blit(TEXTURE, leftPos, topPos, 0, 0, imageWidth, imageHeight);
 		super.render(guiGraphics, mouseX, mouseY, partialTick);
 		guiGraphics.drawString(font, title, width / 2 - font.width(title) / 2, topPos + 6, 4210752, false);
-	}
-
-	@Override
-	public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-		renderTransparentBackground(guiGraphics);
-		guiGraphics.blit(TEXTURE, leftPos, topPos, 0, 0, imageWidth, imageHeight);
 	}
 
 	@Override
@@ -92,11 +87,11 @@ public class BriefcasePasscodeScreen extends Screen {
 			String passcode = digits[0] + "" + digits[1] + "" + digits[2] + "" + digits[3];
 
 			if (isSetup) {
-				PacketDistributor.sendToServer(new SetBriefcasePasscodeAndOwner(passcode));
+				SecurityCraft.CHANNEL.sendToServer(new SetBriefcasePasscodeAndOwner(passcode));
 				ClientHandler.displayBriefcasePasscodeScreen(briefcase.getHoverName());
 			}
 			else
-				PacketDistributor.sendToServer(new CheckBriefcasePasscode(passcode));
+				SecurityCraft.CHANNEL.sendToServer(new CheckBriefcasePasscode(passcode));
 		}
 	}
 

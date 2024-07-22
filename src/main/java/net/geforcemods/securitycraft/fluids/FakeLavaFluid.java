@@ -25,10 +25,10 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.FluidState;
-import net.neoforged.neoforge.event.EventHooks;
-import net.neoforged.neoforge.fluids.BaseFlowingFluid;
+import net.minecraftforge.event.ForgeEventFactory;
+import net.minecraftforge.fluids.ForgeFlowingFluid;
 
-public abstract class FakeLavaFluid extends BaseFlowingFluid {
+public abstract class FakeLavaFluid extends ForgeFlowingFluid {
 	protected FakeLavaFluid(Properties properties) {
 		super(properties);
 	}
@@ -85,7 +85,7 @@ public abstract class FakeLavaFluid extends BaseFlowingFluid {
 
 					if (stateToUpdate.isAir()) {
 						if (isSurroundingBlockFlammable(level, posToUpdate)) {
-							level.setBlockAndUpdate(posToUpdate, EventHooks.fireFluidPlaceBlockEvent(level, posToUpdate, pos, Blocks.FIRE.defaultBlockState()));
+							level.setBlockAndUpdate(posToUpdate, ForgeEventFactory.fireFluidPlaceBlockEvent(level, posToUpdate, pos, Blocks.FIRE.defaultBlockState()));
 							return;
 						}
 					}
@@ -103,7 +103,7 @@ public abstract class FakeLavaFluid extends BaseFlowingFluid {
 					BlockPos posAbove = posToUpdate.above();
 
 					if (level.isEmptyBlock(posAbove) && isFlammable(level, posToUpdate, Direction.UP))
-						level.setBlockAndUpdate(posAbove, EventHooks.fireFluidPlaceBlockEvent(level, posAbove, pos, Blocks.FIRE.defaultBlockState()));
+						level.setBlockAndUpdate(posAbove, ForgeEventFactory.fireFluidPlaceBlockEvent(level, posAbove, pos, Blocks.FIRE.defaultBlockState()));
 				}
 			}
 		}
@@ -124,7 +124,7 @@ public abstract class FakeLavaFluid extends BaseFlowingFluid {
 
 		BlockState state = level.getBlockState(pos);
 
-		return state.ignitedByLava() && state.isFlammable(level, pos, face);
+		return state.isFlammable(level, pos, face);
 	}
 
 	@Nullable
@@ -196,7 +196,7 @@ public abstract class FakeLavaFluid extends BaseFlowingFluid {
 	protected void spreadTo(LevelAccessor level, BlockPos pos, BlockState state, Direction direction, FluidState fluidState) {
 		if (direction == Direction.DOWN && is(FluidTags.LAVA) && fluidState.is(FluidTags.WATER)) {
 			if (state.getBlock() instanceof LiquidBlock)
-				level.setBlock(pos, EventHooks.fireFluidPlaceBlockEvent(level, pos, pos, Blocks.STONE.defaultBlockState()), 3);
+				level.setBlock(pos, ForgeEventFactory.fireFluidPlaceBlockEvent(level, pos, pos, Blocks.STONE.defaultBlockState()), 3);
 
 			triggerEffects(level, pos);
 			return;

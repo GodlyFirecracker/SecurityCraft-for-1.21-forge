@@ -1,45 +1,59 @@
 package net.geforcemods.securitycraft.network.server;
 
-import net.geforcemods.securitycraft.SecurityCraft;
+import java.util.function.Supplier;
+
 import net.geforcemods.securitycraft.blockentities.SecureRedstoneInterfaceBlockEntity;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.network.NetworkEvent.Context;
 
-public record SyncSecureRedstoneInterface(BlockPos pos, boolean sender, boolean protectedSignal, int frequency, boolean sendExactPower, boolean receiveInvertedPower, int senderRange, boolean highlightConnections) implements CustomPacketPayload {
+public class SyncSecureRedstoneInterface {
+	private BlockPos pos;
+	private boolean sender;
+	private boolean protectedSignal;
+	private int frequency;
+	private boolean sendExactPower;
+	private boolean receiveInvertedPower;
+	private int senderRange;
+	private boolean highlightConnections;
 
-	public static final Type<SyncSecureRedstoneInterface> TYPE = new Type<>(SecurityCraft.resLoc("sync_secure_redstone_interface"));
-	//@formatter:off
-	public static final StreamCodec<RegistryFriendlyByteBuf, SyncSecureRedstoneInterface> STREAM_CODEC = new StreamCodec<>() {
-		@Override
-		public void encode(RegistryFriendlyByteBuf buf, SyncSecureRedstoneInterface packet) {
-			buf.writeBlockPos(packet.pos);
-			buf.writeBoolean(packet.sender);
-			buf.writeBoolean(packet.protectedSignal);
-			buf.writeVarInt(packet.frequency);
-			buf.writeBoolean(packet.sendExactPower);
-			buf.writeBoolean(packet.receiveInvertedPower);
-			buf.writeVarInt(packet.senderRange);
-			buf.writeBoolean(packet.highlightConnections);
-		}
-
-		@Override
-		public SyncSecureRedstoneInterface decode(RegistryFriendlyByteBuf buf) {
-			return new SyncSecureRedstoneInterface(buf.readBlockPos(), buf.readBoolean(), buf.readBoolean(), buf.readVarInt(), buf.readBoolean(), buf.readBoolean(), buf.readVarInt(), buf.readBoolean());
-		}
-	};
-	//@formatter:on
-	@Override
-	public Type<? extends CustomPacketPayload> type() {
-		return TYPE;
+	public SyncSecureRedstoneInterface(BlockPos pos, boolean sender, boolean protectedSignal, int frequency, boolean sendExactPower, boolean receiveInvertedPower, int senderRange, boolean highlightConnections) {
+		this.pos = pos;
+		this.sender = sender;
+		this.protectedSignal = protectedSignal;
+		this.frequency = frequency;
+		this.sendExactPower = sendExactPower;
+		this.receiveInvertedPower = receiveInvertedPower;
+		this.senderRange = senderRange;
+		this.highlightConnections = highlightConnections;
 	}
 
-	public void handle(IPayloadContext ctx) {
-		Player player = ctx.player();
+	public SyncSecureRedstoneInterface(FriendlyByteBuf buf) {
+		pos = buf.readBlockPos();
+		sender = buf.readBoolean();
+		protectedSignal = buf.readBoolean();
+		frequency = buf.readVarInt();
+		sendExactPower = buf.readBoolean();
+		receiveInvertedPower = buf.readBoolean();
+		senderRange = buf.readVarInt();
+		highlightConnections = buf.readBoolean();
+	}
+
+	public void encode(FriendlyByteBuf buf) {
+		buf.writeBlockPos(pos);
+		buf.writeBoolean(sender);
+		buf.writeBoolean(protectedSignal);
+		buf.writeVarInt(frequency);
+		buf.writeBoolean(sendExactPower);
+		buf.writeBoolean(receiveInvertedPower);
+		buf.writeVarInt(senderRange);
+		buf.writeBoolean(highlightConnections);
+	}
+
+	public void handle(Supplier<Context> ctx) {
+		Player player = ctx.get().getSender();
 		Level level = player.level();
 
 		if (level.getBlockEntity(pos) instanceof SecureRedstoneInterfaceBlockEntity be && be.isOwnedBy(player)) {

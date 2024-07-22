@@ -13,11 +13,10 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 public class BlockReinforcerScreen extends AbstractContainerScreen<BlockReinforcerMenu> {
-	private static final ResourceLocation TEXTURE = SecurityCraft.resLoc("textures/gui/container/universal_block_reinforcer.png");
-	private static final ResourceLocation TEXTURE_LVL1 = SecurityCraft.resLoc("textures/gui/container/universal_block_reinforcer_lvl1.png");
+	private static final ResourceLocation TEXTURE = new ResourceLocation(SecurityCraft.MODID, "textures/gui/container/universal_block_reinforcer.png");
+	private static final ResourceLocation TEXTURE_LVL1 = new ResourceLocation(SecurityCraft.MODID, "textures/gui/container/universal_block_reinforcer_lvl1.png");
 	private final Component ubr = Utils.localize("gui.securitycraft:blockReinforcer.title");
 	private final Component output = Utils.localize("gui.securitycraft:blockReinforcer.output");
 	private CallbackCheckbox unreinforceCheckbox;
@@ -78,12 +77,13 @@ public class BlockReinforcerScreen extends AbstractContainerScreen<BlockReinforc
 
 	@Override
 	protected void renderBg(GuiGraphics guiGraphics, float partialTicks, int mouseX, int mouseY) {
+		renderBackground(guiGraphics);
 		guiGraphics.blit(menu.isLvl1 ? TEXTURE_LVL1 : TEXTURE, leftPos, topPos, 0, 0, imageWidth, imageHeight);
 	}
 
 	@Override
 	public void onClose() {
 		super.onClose();
-		PacketDistributor.sendToServer(new SyncBlockReinforcer(!unreinforceCheckbox.selected()));
+		SecurityCraft.CHANNEL.sendToServer(new SyncBlockReinforcer(!unreinforceCheckbox.selected()));
 	}
 }

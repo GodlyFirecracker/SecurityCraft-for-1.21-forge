@@ -2,17 +2,17 @@ package net.geforcemods.securitycraft.inventory;
 
 import net.geforcemods.securitycraft.items.ModuleItem;
 import net.minecraft.core.NonNullList;
-import net.minecraft.core.component.DataComponents;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.component.ItemContainerContents;
 
 public class ModuleItemContainer implements Container {
 	private final ItemStack module;
 	private NonNullList<ItemStack> moduleInventory;
 	private DisguiseModuleMenu menu;
-	private boolean changed;
 
 	public ModuleItemContainer(ItemStack moduleStack) {
 		module = moduleStack;
@@ -21,7 +21,11 @@ public class ModuleItemContainer implements Container {
 			return;
 
 		moduleInventory = NonNullList.withSize(1, ItemStack.EMPTY);
-		load();
+
+		if (!module.hasTag())
+			module.setTag(new CompoundTag());
+
+		load(module.getTag());
 	}
 
 	@Override
@@ -34,12 +38,32 @@ public class ModuleItemContainer implements Container {
 		return moduleInventory.get(index);
 	}
 
-	public void load() {
-		module.getOrDefault(DataComponents.CONTAINER, ItemContainerContents.EMPTY).copyInto(moduleInventory);
+	public void load(CompoundTag tag) {
+		ListTag items = tag.getList("ItemInventory", Tag.TAG_COMPOUND);
+
+		for (int i = 0; i < items.size(); i++) {
+			CompoundTag item = items.getCompound(i);
+			int slot = item.getInt("Slot");
+
+			if (slot < getContainerSize())
+				moduleInventory.set(slot, ItemStack.of(item));
+		}
 	}
 
-	public void save() {
-		module.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(moduleInventory));
+	public void save(CompoundTag tag) {
+		ListTag items = new ListTag();
+
+		for (int i = 0; i < getContainerSize(); i++) {
+			if (!getItem(i).isEmpty()) {
+				CompoundTag item = new CompoundTag();
+
+				item.putInt("Slot", i);
+				getItem(i).save(item);
+				items.add(item);
+			}
+		}
+
+		tag.put("ItemInventory", items);
 	}
 
 	@Override
@@ -78,13 +102,18 @@ public class ModuleItemContainer implements Container {
 	}
 
 	@Override
+	public int getMaxStackSize() {
+		return 64;
+	}
+
+	@Override
 	public void setChanged() {
 		for (int i = 0; i < getContainerSize(); i++) {
 			if (!getItem(i).isEmpty() && getItem(i).getCount() == 0)
 				moduleInventory.set(i, ItemStack.EMPTY);
 		}
 
-		changed = true;
+		save(module.getTag());
 
 		if (menu != null)
 			menu.slotsChanged(this);
@@ -99,10 +128,7 @@ public class ModuleItemContainer implements Container {
 	public void startOpen(Player player) {}
 
 	@Override
-	public void stopOpen(Player player) {
-		if (changed)
-			save();
-	}
+	public void stopOpen(Player player) {}
 
 	@Override
 	public boolean canPlaceItem(int index, ItemStack stack) {

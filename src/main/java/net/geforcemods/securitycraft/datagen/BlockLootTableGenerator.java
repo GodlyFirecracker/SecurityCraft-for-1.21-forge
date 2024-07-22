@@ -11,7 +11,6 @@ import net.geforcemods.securitycraft.blocks.reinforced.ReinforcedSlabBlock;
 import net.geforcemods.securitycraft.misc.BlockEntityNBTCondition;
 import net.minecraft.advancements.critereon.StatePropertiesPredicate;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.data.loot.BlockLootSubProvider;
 import net.minecraft.world.Nameable;
 import net.minecraft.world.flag.FeatureFlags;
@@ -25,23 +24,24 @@ import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.level.storage.loot.LootTable.Builder;
 import net.minecraft.world.level.storage.loot.entries.LootItem;
 import net.minecraft.world.level.storage.loot.entries.LootPoolSingletonContainer;
-import net.minecraft.world.level.storage.loot.functions.CopyComponentsFunction;
 import net.minecraft.world.level.storage.loot.functions.CopyNameFunction;
 import net.minecraft.world.level.storage.loot.functions.CopyNameFunction.NameSource;
+import net.minecraft.world.level.storage.loot.functions.CopyNbtFunction;
 import net.minecraft.world.level.storage.loot.functions.SetItemCountFunction;
 import net.minecraft.world.level.storage.loot.predicates.ExplosionCondition;
 import net.minecraft.world.level.storage.loot.predicates.LootItemBlockStatePropertyCondition;
+import net.minecraft.world.level.storage.loot.providers.nbt.ContextNbtProvider;
 import net.minecraft.world.level.storage.loot.providers.number.ConstantValue;
-import net.neoforged.neoforge.registries.DeferredHolder;
+import net.minecraftforge.registries.RegistryObject;
 
 public class BlockLootTableGenerator extends BlockLootSubProvider {
-	public BlockLootTableGenerator(HolderLookup.Provider lookupProvider) {
-		super(Set.of(), FeatureFlags.REGISTRY.allFlags(), lookupProvider);
+	public BlockLootTableGenerator() {
+		super(Set.of(), FeatureFlags.REGISTRY.allFlags());
 	}
 
 	@Override
 	public void generate() {
-		for (DeferredHolder<Block, ? extends Block> obj : SCContent.BLOCKS.getEntries()) {
+		for (RegistryObject<Block> obj : SCContent.BLOCKS.getEntries()) {
 			Block block = obj.get();
 
 			if (block instanceof ReinforcedSlabBlock)
@@ -60,7 +60,7 @@ public class BlockLootTableGenerator extends BlockLootSubProvider {
 		add(SCContent.CRYSTAL_QUARTZ_SLAB, this::createSlabItemTable);
 		add(SCContent.SMOOTH_CRYSTAL_QUARTZ_SLAB, this::createSlabItemTable);
 
-		LootPoolSingletonContainer.Builder<?> imsLootEntryBuilder = LootItem.lootTableItem(SCContent.BOUNCING_BETTY);
+		LootPoolSingletonContainer.Builder<?> imsLootEntryBuilder = LootItem.lootTableItem(SCContent.BOUNCING_BETTY.get());
 
 		for (int i = 0; i <= 4; i++) {
 			if (i == 1)
@@ -86,8 +86,8 @@ public class BlockLootTableGenerator extends BlockLootSubProvider {
 				LootTable.lootTable()
 				.withPool(LootPool.lootPool()
 						.setRolls(ConstantValue.exactly(1))
-						.add(LootItem.lootTableItem(SCContent.REINFORCED_IRON_BARS)
-								.when(BlockEntityNBTCondition.nbt("canDrop", true)))
+						.add(LootItem.lootTableItem(SCContent.REINFORCED_IRON_BARS.get())
+								.when(BlockEntityNBTCondition.builder().equals("canDrop", true)))
 						.when(ExplosionCondition.survivesExplosion())));
 		//@formatter:on
 		add(SCContent.REINFORCED_LAVA_CAULDRON, createNameableBlockEntityTable(SCContent.REINFORCED_CAULDRON.get()));
@@ -121,10 +121,9 @@ public class BlockLootTableGenerator extends BlockLootSubProvider {
 		add(SCContent.SONIC_SECURITY_SYSTEM, LootTable.lootTable()
 				.withPool(LootPool.lootPool()
 						.setRolls(ConstantValue.exactly(1))
-						.add(LootItem.lootTableItem(SCContent.SONIC_SECURITY_SYSTEM_ITEM)
-								.apply(CopyComponentsFunction.copyComponents(CopyComponentsFunction.Source.BLOCK_ENTITY)
-										.include(SCContent.SSS_LINKED_BLOCKS.get())
-										.include(SCContent.NOTES.get()))
+						.add(LootItem.lootTableItem(SCContent.SONIC_SECURITY_SYSTEM_ITEM.get())
+								.apply(CopyNbtFunction.copyData(ContextNbtProvider.BLOCK_ENTITY)
+										.copy("LinkedBlocks", "LinkedBlocks"))
 								.apply(CopyNameFunction.copyName(NameSource.BLOCK_ENTITY)))));
 		//@formatter:on
 	}
@@ -150,6 +149,6 @@ public class BlockLootTableGenerator extends BlockLootSubProvider {
 
 	@Override
 	protected Iterable<Block> getKnownBlocks() {
-		return (Iterable<Block>) SCContent.BLOCKS.getEntries().stream().map(DeferredHolder::get).toList();
+		return SCContent.BLOCKS.getEntries().stream().map(RegistryObject::get).toList();
 	}
 }

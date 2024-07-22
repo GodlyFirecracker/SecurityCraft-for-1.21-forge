@@ -5,7 +5,9 @@ import net.geforcemods.securitycraft.blockentities.BlockPocketManagerBlockEntity
 import net.geforcemods.securitycraft.util.LevelUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Containers;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.context.BlockPlaceContext;
@@ -21,6 +23,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition.Builder;
 import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraftforge.network.NetworkHooks;
 
 public class BlockPocketManagerBlock extends OwnableBlock {
 	public static final DirectionProperty FACING = DirectionProperty.create("facing", Direction.Plane.HORIZONTAL);
@@ -30,9 +33,9 @@ public class BlockPocketManagerBlock extends OwnableBlock {
 	}
 
 	@Override
-	public InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
+	public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
 		if (!level.isClientSide && level.getBlockEntity(pos) instanceof BlockPocketManagerBlockEntity be && !be.isPlacingBlocks())
-			player.openMenu(be, pos);
+			NetworkHooks.openScreen((ServerPlayer) player, be, pos);
 
 		return InteractionResult.SUCCESS;
 	}
@@ -42,8 +45,13 @@ public class BlockPocketManagerBlock extends OwnableBlock {
 		if (level.isClientSide || state.getBlock() == newState.getBlock())
 			return;
 
-		if (level.getBlockEntity(pos) instanceof BlockPocketManagerBlockEntity be)
-			Containers.dropContents(level, pos, be.getStorage());
+		if (level.getBlockEntity(pos) instanceof BlockPocketManagerBlockEntity be) {
+			be.getStorageHandler().ifPresent(handler -> {
+				for (int i = 0; i < handler.getSlots(); i++) {
+					Containers.dropItemStack(level, pos.getX(), pos.getY(), pos.getZ(), handler.getStackInSlot(i));
+				}
+			});
+		}
 
 		super.onRemove(state, level, pos, newState, isMoving);
 	}

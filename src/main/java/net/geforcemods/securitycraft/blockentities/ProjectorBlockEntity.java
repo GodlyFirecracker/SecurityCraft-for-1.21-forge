@@ -7,9 +7,7 @@ import net.geforcemods.securitycraft.api.Option;
 import net.geforcemods.securitycraft.inventory.ProjectorMenu;
 import net.geforcemods.securitycraft.misc.ModuleType;
 import net.geforcemods.securitycraft.util.StandingOrWallType;
-import net.geforcemods.securitycraft.util.Utils;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
@@ -25,6 +23,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.StandingAndWallBlockItem;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 
 public class ProjectorBlockEntity extends DisguisableBlockEntity implements Container, MenuProvider, ILockable {
 	public static final int MIN_WIDTH = 1; //also for height
@@ -33,6 +32,7 @@ public class ProjectorBlockEntity extends DisguisableBlockEntity implements Cont
 	public static final int MAX_RANGE = 30;
 	public static final int MIN_OFFSET = -10;
 	public static final int MAX_OFFSET = 10;
+	public static final int RENDER_DISTANCE = 100;
 	private int projectionWidth = 1;
 	private int projectionHeight = 1;
 	private int projectionRange = 5;
@@ -49,8 +49,13 @@ public class ProjectorBlockEntity extends DisguisableBlockEntity implements Cont
 	}
 
 	@Override
-	public void saveAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.saveAdditional(tag, lookupProvider);
+	public AABB getRenderBoundingBox() {
+		return new AABB(getBlockPos()).inflate(RENDER_DISTANCE);
+	}
+
+	@Override
+	public void saveAdditional(CompoundTag tag) {
+		super.saveAdditional(tag);
 
 		tag.putInt("width", projectionWidth);
 		tag.putInt("height", projectionHeight);
@@ -59,16 +64,13 @@ public class ProjectorBlockEntity extends DisguisableBlockEntity implements Cont
 		tag.putBoolean("active", active);
 		tag.putBoolean("horizontal", horizontal);
 		tag.putBoolean("overriding_blocks", overridingBlocks);
-
-		if (!projectedBlock.isEmpty())
-			tag.put("storedItem", projectedBlock.saveOptional(lookupProvider));
-
+		tag.put("storedItem", projectedBlock.save(new CompoundTag()));
 		tag.put("SavedState", NbtUtils.writeBlockState(projectedState));
 	}
 
 	@Override
-	public void loadAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.loadAdditional(tag, lookupProvider);
+	public void load(CompoundTag tag) {
+		super.load(tag);
 
 		projectionWidth = tag.getInt("width");
 		projectionHeight = tag.getInt("height");
@@ -78,7 +80,7 @@ public class ProjectorBlockEntity extends DisguisableBlockEntity implements Cont
 		active = tag.getBoolean("active");
 		horizontal = tag.getBoolean("horizontal");
 		overridingBlocks = tag.getBoolean("overriding_blocks");
-		projectedBlock = Utils.parseOptional(lookupProvider, tag.getCompound("storedItem"));
+		projectedBlock = ItemStack.of(tag.getCompound("storedItem"));
 
 		if (!tag.contains("SavedState"))
 			resetSavedState();

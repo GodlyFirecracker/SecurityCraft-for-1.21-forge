@@ -2,6 +2,7 @@ package net.geforcemods.securitycraft.blocks;
 
 import net.geforcemods.securitycraft.SCContent;
 import net.geforcemods.securitycraft.SecurityCraft;
+import net.geforcemods.securitycraft.api.IDisguisable;
 import net.geforcemods.securitycraft.api.IModuleInventory;
 import net.geforcemods.securitycraft.blockentities.SecurityCameraBlockEntity;
 import net.geforcemods.securitycraft.entity.camera.SecurityCamera;
@@ -15,13 +16,10 @@ import net.minecraft.core.Direction.Axis;
 import net.minecraft.core.SectionPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.util.Mth;
 import net.minecraft.world.Containers;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.ItemInteractionResult;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
@@ -29,7 +27,6 @@ import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Mirror;
-import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.SimpleWaterloggedBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -48,9 +45,11 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraftforge.common.world.ForgeChunkManager;
+import net.minecraftforge.network.NetworkHooks;
+import net.minecraftforge.network.PacketDistributor;
 
-public class SecurityCameraBlock extends OwnableBlock implements SimpleWaterloggedBlock {
+public class SecurityCameraBlock extends DisguisableBlock implements SimpleWaterloggedBlock {
 	public static final DirectionProperty FACING = DirectionProperty.create("facing", facing -> facing != Direction.UP);
 	public static final BooleanProperty POWERED = BlockStateProperties.POWERED;
 	public static final BooleanProperty BEING_VIEWED = BooleanProperty.create("being_viewed");
@@ -67,18 +66,10 @@ public class SecurityCameraBlock extends OwnableBlock implements SimpleWaterlogg
 	}
 
 	@Override
-	protected ItemInteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
-		if (stack.is(SCContent.CAMERA_MONITOR.get()))
-			return ItemInteractionResult.SKIP_DEFAULT_BLOCK_INTERACTION;
-
-		return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
-	}
-
-	@Override
-	public InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
-		if (level.getBlockEntity(pos) instanceof SecurityCameraBlockEntity be && be.isOwnedBy(player)) {
+	public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
+		if (!player.getItemInHand(hand).is(SCContent.CAMERA_MONITOR.get()) && level.getBlockEntity(pos) instanceof SecurityCameraBlockEntity be && be.isOwnedBy(player)) {
 			if (!level.isClientSide)
-				player.openMenu(be, pos);
+				NetworkHooks.openScreen((ServerPlayer) player, be, pos);
 
 			return InteractionResult.SUCCESS;
 		}
@@ -87,22 +78,12 @@ public class SecurityCameraBlock extends OwnableBlock implements SimpleWaterlogg
 	}
 
 	@Override
-	public VoxelShape getCollisionShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext ctx) {
-		return Shapes.empty();
-	}
-
-	@Override
-	public RenderShape getRenderShape(BlockState state) {
-		return state.getValue(FACING) == Direction.DOWN ? RenderShape.MODEL : RenderShape.ENTITYBLOCK_ANIMATED;
-	}
-
-	@Override
-	public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
+	public void playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
 		//prevents dropping twice the amount of modules when breaking the block in creative mode
 		if (player.isCreative() && level.getBlockEntity(pos) instanceof IModuleInventory inv)
 			inv.getInventory().clear();
 
-		return super.playerWillDestroy(level, pos, state, player);
+		super.playerWillDestroy(level, pos, state, player);
 	}
 
 	@Override
@@ -121,13 +102,19 @@ public class SecurityCameraBlock extends OwnableBlock implements SimpleWaterlogg
 
 	@Override
 	public VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext ctx) {
-		return switch (state.getValue(FACING)) {
-			case SOUTH -> SHAPE_SOUTH;
-			case NORTH -> SHAPE_NORTH;
-			case WEST -> SHAPE_WEST;
-			case DOWN -> SHAPE_DOWN;
-			default -> SHAPE;
-		};
+		BlockState disguisedState = IDisguisable.getDisguisedStateOrDefault(state, level, pos);
+
+		if (disguisedState.getBlock() != this)
+			return disguisedState.getShape(level, pos, ctx);
+		else {
+			return switch (state.getValue(FACING)) {
+				case SOUTH -> SHAPE_SOUTH;
+				case NORTH -> SHAPE_NORTH;
+				case WEST -> SHAPE_WEST;
+				case DOWN -> SHAPE_DOWN;
+				default -> SHAPE;
+			};
+		}
 	}
 
 	@Override
@@ -160,7 +147,7 @@ public class SecurityCameraBlock extends OwnableBlock implements SimpleWaterlogg
 			ServerPlayer serverPlayer = (ServerPlayer) player;
 			SecurityCamera dummyEntity;
 			SectionPos chunkPos = SectionPos.of(pos);
-			int viewDistance = Mth.clamp(serverPlayer.requestedViewDistance(), 2, serverPlayer.server.getPlayerList().getViewDistance());
+			int viewDistance = serverPlayer.server.getPlayerList().getViewDistance();
 
 			if (serverPlayer.getCamera() instanceof SecurityCamera cam)
 				cam.discard();
@@ -171,13 +158,13 @@ public class SecurityCameraBlock extends OwnableBlock implements SimpleWaterlogg
 
 			for (int x = chunkPos.getX() - viewDistance; x <= chunkPos.getX() + viewDistance; x++) {
 				for (int z = chunkPos.getZ() - viewDistance; z <= chunkPos.getZ() + viewDistance; z++) {
-					SecurityCraft.CAMERA_TICKET_CONTROLLER.forceChunk(serverLevel, dummyEntity, x, z, true, false);
+					ForgeChunkManager.forceChunk(serverLevel, SecurityCraft.MODID, dummyEntity, x, z, true, false);
 				}
 			}
 
 			//can't use ServerPlayer#setCamera here because it also teleports the player
 			serverPlayer.camera = dummyEntity;
-			PacketDistributor.sendToPlayer(serverPlayer, new SetCameraView(dummyEntity.getId()));
+			SecurityCraft.CHANNEL.send(PacketDistributor.PLAYER.with(() -> serverPlayer), new SetCameraView(dummyEntity));
 
 			if (level.getBlockEntity(pos) instanceof SecurityCameraBlockEntity cam)
 				cam.startViewing();

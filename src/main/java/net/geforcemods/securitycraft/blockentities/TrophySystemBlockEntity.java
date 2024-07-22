@@ -27,14 +27,11 @@ import net.geforcemods.securitycraft.util.BlockUtils;
 import net.geforcemods.securitycraft.util.ITickingBlockEntity;
 import net.geforcemods.securitycraft.util.IToggleableEntries;
 import net.geforcemods.securitycraft.util.TeamUtils;
-import net.geforcemods.securitycraft.util.Utils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Container;
 import net.minecraft.world.ContainerListener;
 import net.minecraft.world.MenuProvider;
@@ -51,23 +48,31 @@ import net.minecraft.world.entity.projectile.ThrownPotion;
 import net.minecraft.world.entity.projectile.ThrownTrident;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.Level.ExplosionInteraction;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
-import net.neoforged.neoforge.items.IItemHandler;
-import net.neoforged.neoforge.items.wrapper.InvWrapper;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraftforge.common.capabilities.Capability;
+import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.common.util.LazyOptional;
+import net.minecraftforge.items.IItemHandler;
+import net.minecraftforge.items.wrapper.InvWrapper;
+import net.minecraftforge.network.PacketDistributor;
 
 public class TrophySystemBlockEntity extends DisguisableBlockEntity implements ITickingBlockEntity, ILockable, IToggleableEntries<EntityType<?>>, MenuProvider, ContainerListener {
 	/** The range (in blocks) that the trophy system will search for projectiles in */
 	public static final int RANGE = 10;
+	/**
+	 * The number of blocks away from the trophy system you can be for the laser beam between itself and the projectile to be
+	 * rendered
+	 */
+	public static final int RENDER_DISTANCE = 50;
 	private final Map<EntityType<?>, Boolean> projectileFilter = new LinkedHashMap<>();
 	private Projectile entityBeingTargeted = null;
 	private int cooldown = getCooldownTime();
 	private DisabledOption disabled = new DisabledOption(false);
 	private IgnoreOwnerOption ignoreOwner = new IgnoreOwnerOption(true);
+	private LazyOptional<IItemHandler> insertOnlyHandler, lensHandler;
 	private LensContainer lens = new LensContainer(1);
 
 	public TrophySystemBlockEntity(BlockPos pos, BlockState state) {
@@ -90,8 +95,6 @@ public class TrophySystemBlockEntity extends DisguisableBlockEntity implements I
 		projectileFilter.put(EntityType.SNOWBALL, true);
 		projectileFilter.put(EntityType.FIREWORK_ROCKET, true);
 		projectileFilter.put(EntityType.PIG, false); //modded projectiles
-		projectileFilter.put(EntityType.BREEZE_WIND_CHARGE, true);
-		projectileFilter.put(EntityType.WIND_CHARGE, true);
 	}
 
 	@Override
@@ -138,8 +141,13 @@ public class TrophySystemBlockEntity extends DisguisableBlockEntity implements I
 	}
 
 	@Override
-	public void saveAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.saveAdditional(tag, lookupProvider);
+	public AABB getRenderBoundingBox() {
+		return new AABB(getBlockPos()).inflate(RENDER_DISTANCE);
+	}
+
+	@Override
+	public void saveAdditional(CompoundTag tag) {
+		super.saveAdditional(tag);
 
 		CompoundTag projectilesNBT = new CompoundTag();
 		int i = 0;
@@ -150,12 +158,12 @@ public class TrophySystemBlockEntity extends DisguisableBlockEntity implements I
 		}
 
 		tag.put("projectiles", projectilesNBT);
-		tag.put("lens", lens.createTag(lookupProvider));
+		tag.put("lens", lens.createTag());
 	}
 
 	@Override
-	public void loadAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.loadAdditional(tag, lookupProvider);
+	public void load(CompoundTag tag) {
+		super.load(tag);
 
 		if (tag.contains("projectiles", Tag.TAG_COMPOUND)) {
 			CompoundTag projectilesNBT = tag.getCompound("projectiles");
@@ -167,11 +175,47 @@ public class TrophySystemBlockEntity extends DisguisableBlockEntity implements I
 			}
 		}
 
-		lens.fromTag(tag.getList("lens", Tag.TAG_COMPOUND), lookupProvider);
+		lens.fromTag(tag.getList("lens", Tag.TAG_COMPOUND));
 	}
 
-	public static IItemHandler getCapability(TrophySystemBlockEntity be, Direction side) {
-		return BlockUtils.isAllowedToExtractFromProtectedObject(side, be) ? new InvWrapper(be.lens) : new InsertOnlyInvWrapper(be.lens);
+	@Override
+	public <T> LazyOptional<T> getCapability(Capability<T> cap, Direction side) {
+		if (cap == ForgeCapabilities.ITEM_HANDLER)
+			return BlockUtils.isAllowedToExtractFromProtectedObject(side, this) ? getNormalHandler().cast() : getInsertOnlyHandler().cast();
+		else
+			return super.getCapability(cap, side);
+	}
+
+	@Override
+	public void invalidateCaps() {
+		if (insertOnlyHandler != null)
+			insertOnlyHandler.invalidate();
+
+		if (lensHandler != null)
+			lensHandler.invalidate();
+
+		super.invalidateCaps();
+	}
+
+	@Override
+	public void reviveCaps() {
+		insertOnlyHandler = null;
+		lensHandler = null;
+		super.reviveCaps();
+	}
+
+	private LazyOptional<IItemHandler> getInsertOnlyHandler() {
+		if (insertOnlyHandler == null)
+			insertOnlyHandler = LazyOptional.of(() -> new InsertOnlyInvWrapper(lens));
+
+		return insertOnlyHandler;
+	}
+
+	private LazyOptional<IItemHandler> getNormalHandler() {
+		if (lensHandler == null)
+			lensHandler = LazyOptional.of(() -> new InvWrapper(lens));
+
+		return lensHandler;
 	}
 
 	public SimpleContainer getLensContainer() {
@@ -201,7 +245,7 @@ public class TrophySystemBlockEntity extends DisguisableBlockEntity implements I
 		setChanged();
 
 		if (!level.isClientSide)
-			PacketDistributor.sendToPlayersTrackingChunk((ServerLevel) level, new ChunkPos(worldPosition), new SetTrophySystemTarget(worldPosition, target.getId()));
+			SecurityCraft.CHANNEL.send(PacketDistributor.TRACKING_CHUNK.with(() -> level.getChunkAt(worldPosition)), new SetTrophySystemTarget(worldPosition, target.getId()));
 	}
 
 	/**
@@ -255,16 +299,14 @@ public class TrophySystemBlockEntity extends DisguisableBlockEntity implements I
 	}
 
 	private boolean filterSCProjectiles(Projectile projectile) {
-		Owner owner = switch (projectile) {
-			case Bullet bullet -> bullet.getSCOwner();
-			case IMSBomb imsBomb -> imsBomb.getSCOwner();
-			default -> {
-				if (projectile.getOwner() instanceof Sentry sentry)
-					yield sentry.getOwner();
-				else
-					yield null;
-			}
-		};
+		Owner owner = null;
+
+		if (projectile instanceof Bullet bullet)
+			owner = bullet.getSCOwner();
+		else if (projectile instanceof IMSBomb imsBomb)
+			owner = imsBomb.getSCOwner();
+		else if (projectile.getOwner() instanceof Sentry sentry)
+			owner = sentry.getOwner();
 
 		return owner == null || (!owner.owns(this) && !isAllowed(owner.getName()));
 	}
@@ -276,7 +318,7 @@ public class TrophySystemBlockEntity extends DisguisableBlockEntity implements I
 			setChanged();
 
 			if (level.isClientSide)
-				PacketDistributor.sendToServer(new SyncTrophySystem(worldPosition, Utils.getRegistryName(projectileType), allowed));
+				SecurityCraft.CHANNEL.sendToServer(new SyncTrophySystem(worldPosition, projectileType, allowed));
 		}
 	}
 

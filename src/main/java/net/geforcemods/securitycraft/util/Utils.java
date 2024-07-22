@@ -2,9 +2,6 @@ package net.geforcemods.securitycraft.util;
 
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
@@ -13,12 +10,11 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.item.alchemy.Potion;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraftforge.registries.ForgeRegistries;
 
 public class Utils {
 	public static final Style GRAY_STYLE = Style.EMPTY.withColor(ChatFormatting.GRAY);
@@ -48,46 +44,32 @@ public class Utils {
 		return Component.translatable(key, params);
 	}
 
-	public static ItemStack parseOptional(HolderLookup.Provider provider, CompoundTag tag) {
-		return !tag.contains("id") || Items.AIR.toString().equals(tag.getString("id")) ? ItemStack.EMPTY : ItemStack.parse(provider, tag).orElse(ItemStack.EMPTY);
-	}
-
-	public static BlockPos readBlockPos(CompoundTag tag) {
-		return new BlockPos(tag.getInt("X"), tag.getInt("Y"), tag.getInt("Z"));
-	}
-
-	public static CompoundTag writeBlockPos(BlockPos pos) {
-		CompoundTag tag = new CompoundTag();
-
-		tag.putInt("X", pos.getX());
-		tag.putInt("Y", pos.getY());
-		tag.putInt("Z", pos.getZ());
-		return tag;
-	}
-
 	public static ResourceLocation getRegistryName(Block block) {
-		return BuiltInRegistries.BLOCK.getKey(block);
+		return ForgeRegistries.BLOCKS.getKey(block);
 	}
 
 	public static ResourceLocation getRegistryName(EntityType<?> entityType) {
-		return BuiltInRegistries.ENTITY_TYPE.getKey(entityType);
+		return ForgeRegistries.ENTITY_TYPES.getKey(entityType);
 	}
 
 	public static ResourceLocation getRegistryName(Item item) {
-		return BuiltInRegistries.ITEM.getKey(item);
+		return ForgeRegistries.ITEMS.getKey(item);
 	}
 
 	public static ResourceLocation getRegistryName(Potion potion) {
-		return BuiltInRegistries.POTION.getKey(potion);
+		return ForgeRegistries.POTIONS.getKey(potion);
 	}
 
 	public static String getLanguageKeyDenotation(Object obj) {
-		return switch (obj) {
-			case BlockEntity be -> getLanguageKeyDenotation(be.getBlockState().getBlock());
-			case Block block -> block.getDescriptionId().substring(6);
-			case Entity entity -> entity.getType().toShortString();
-			case BlockState state -> getLanguageKeyDenotation(state.getBlock());
-			default -> "";
-		};
+		if (obj instanceof BlockEntity be)
+			return getLanguageKeyDenotation(be.getBlockState().getBlock());
+		else if (obj instanceof Block block)
+			return block.getDescriptionId().substring(6);
+		else if (obj instanceof Entity entity)
+			return entity.getType().toShortString();
+		else if (obj instanceof BlockState state)
+			return getLanguageKeyDenotation(state.getBlock());
+		else
+			return "";
 	}
 }

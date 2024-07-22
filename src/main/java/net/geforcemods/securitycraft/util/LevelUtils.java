@@ -1,6 +1,5 @@
 package net.geforcemods.securitycraft.util;
 
-import net.geforcemods.securitycraft.SecurityCraft;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
@@ -12,7 +11,7 @@ import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.server.ServerLifecycleHooks;
+import net.minecraftforge.server.ServerLifecycleHooks;
 
 public class LevelUtils {
 	private LevelUtils() {}
@@ -46,7 +45,7 @@ public class LevelUtils {
 		int xPos = Integer.parseInt(coordinates[0]);
 		int yPos = Integer.parseInt(coordinates[1]);
 		int zPos = Integer.parseInt(coordinates[2]);
-		ResourceLocation dim = SecurityCraft.mcResLoc(coordinates.length == 4 ? coordinates[3] : "");
+		ResourceLocation dim = new ResourceLocation(coordinates.length == 4 ? coordinates[3] : "");
 
 		return pos.pos().getX() == xPos && pos.pos().getY() == yPos && pos.pos().getZ() == zPos && pos.dimension().location().equals(dim);
 	}

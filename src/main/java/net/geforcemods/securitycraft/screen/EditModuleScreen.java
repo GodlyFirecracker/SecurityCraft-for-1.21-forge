@@ -1,6 +1,8 @@
 package net.geforcemods.securitycraft.screen;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -8,7 +10,6 @@ import java.util.function.IntFunction;
 
 import org.lwjgl.glfw.GLFW;
 
-import com.google.common.collect.ImmutableList;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
@@ -17,9 +18,8 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat.Mode;
 
-import net.geforcemods.securitycraft.SCContent;
 import net.geforcemods.securitycraft.SecurityCraft;
-import net.geforcemods.securitycraft.components.ListModuleData;
+import net.geforcemods.securitycraft.items.ModuleItem;
 import net.geforcemods.securitycraft.network.server.SetListModuleData;
 import net.geforcemods.securitycraft.screen.components.CallbackCheckbox;
 import net.geforcemods.securitycraft.screen.components.ToggleComponentButton;
@@ -31,19 +31,21 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.StringTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.scores.PlayerTeam;
-import net.neoforged.neoforge.client.gui.widget.ScrollPanel;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraftforge.client.gui.widget.ScrollPanel;
 
 public class EditModuleScreen extends Screen {
-	private static ListModuleData savedData;
-	private static final ResourceLocation TEXTURE = SecurityCraft.resLoc("textures/gui/container/edit_module.png");
-	private static final ResourceLocation CONFIRM_SPRITE = SecurityCraft.mcResLoc("container/beacon/confirm");
-	private static final ResourceLocation CANCEL_SPRITE = SecurityCraft.mcResLoc("container/beacon/cancel");
+	private static CompoundTag savedModule;
+	private static final ResourceLocation TEXTURE = new ResourceLocation("securitycraft:textures/gui/container/edit_module.png");
+	private static final ResourceLocation BEACON_GUI = new ResourceLocation("textures/gui/container/beacon.png");
 	private final Component editModule = Utils.localize("gui.securitycraft:editModule");
 	private final ItemStack module;
 	private final List<PlayerTeam> availableTeams;
@@ -51,7 +53,7 @@ public class EditModuleScreen extends Screen {
 	private EditBox inputField;
 	private Button addPlayerButton, removePlayerButton, copyButton, pasteButton, clearButton;
 	private CallbackCheckbox affectEveryPlayerCheckbox;
-	private int xSize = 247, ySize = 211, leftPos, topPos;
+	private int xSize = 247, ySize = 211;
 	private PlayerList playerList;
 	private TeamList teamList;
 
@@ -65,8 +67,6 @@ public class EditModuleScreen extends Screen {
 	@Override
 	public void init() {
 		super.init();
-		leftPos = (width - xSize) / 2;
-		topPos = (height - ySize) / 2;
 
 		int guiLeft = (width - xSize) / 2;
 		int guiTop = (height - ySize) / 2;
@@ -95,11 +95,11 @@ public class EditModuleScreen extends Screen {
 		clearButton = addRenderableWidget(new Button(controlsStartX, height / 2 + 57, controlsWidth, 20, Utils.localize("gui.securitycraft:editModule.clear"), this::clearButtonClicked, Button.DEFAULT_NARRATION));
 		playerList = addRenderableWidget(new PlayerList(minecraft, 110, 165, height / 2 - 88, guiLeft + 10));
 		teamList = addRenderableWidget(new TeamList(minecraft, editTeamsButton.getWidth(), 75, editTeamsButton.getY() + editTeamsButton.getHeight(), editTeamsButton.getX()));
-		affectEveryPlayerCheckbox = addRenderableWidget(new CallbackCheckbox(guiLeft + xSize / 2 - length / 2, guiTop + ySize - 25, 20, 20, checkboxText, module.getOrDefault(SCContent.LIST_MODULE_DATA, ListModuleData.EMPTY).affectEveryone(), newState -> module.getOrDefault(SCContent.LIST_MODULE_DATA, ListModuleData.EMPTY).updateAffectEveryone(module, newState), 0x404040));
+		affectEveryPlayerCheckbox = addRenderableWidget(new CallbackCheckbox(guiLeft + xSize / 2 - length / 2, guiTop + ySize - 25, 20, 20, checkboxText, module.hasTag() && module.getTag().getBoolean("affectEveryone"), newState -> module.getOrCreateTag().putBoolean("affectEveryone", newState), 0x404040));
 
 		teamList.active = false;
 		editTeamsButton.active = !availableTeams.isEmpty();
-		refreshFromComponent();
+		refreshFromNbt();
 		updateButtonStates();
 		inputField.setMaxLength(16);
 		inputField.setFilter(s -> !s.contains(" "));
@@ -107,13 +107,15 @@ public class EditModuleScreen extends Screen {
 			if (s.isEmpty())
 				addPlayerButton.active = false;
 			else {
-				ListModuleData listModuleData = module.get(SCContent.LIST_MODULE_DATA);
-
-				if (listModuleData != null && listModuleData.isPlayerOnList(s)) {
-					addPlayerButton.active = false;
-					removePlayerButton.active = true;
-					playerList.setSelectedIndex(listModuleData.players().indexOf(s));
-					return;
+				if (module.hasTag()) {
+					for (int i = 1; i <= ModuleItem.MAX_PLAYERS; i++) {
+						if (s.equals(module.getTag().getString("Player" + i))) {
+							addPlayerButton.active = false;
+							removePlayerButton.active = true;
+							playerList.setSelectedIndex(i - 1);
+							return;
+						}
+					}
 				}
 
 				addPlayerButton.active = true;
@@ -128,19 +130,19 @@ public class EditModuleScreen extends Screen {
 	@Override
 	public void onClose() {
 		super.onClose();
-		PacketDistributor.sendToServer(new SetListModuleData(module.getOrDefault(SCContent.LIST_MODULE_DATA, ListModuleData.EMPTY)));
+
+		SecurityCraft.CHANNEL.sendToServer(new SetListModuleData(module.getOrCreateTag()));
 	}
 
 	@Override
 	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
-		super.render(guiGraphics, mouseX, mouseY, partialTicks);
-		guiGraphics.drawWordWrap(font, editModule, leftPos + xSize / 2 - font.width(editModule) / 2, topPos + 6, width, 4210752);
-	}
+		int startX = (width - xSize) / 2;
+		int startY = (height - ySize) / 2;
 
-	@Override
-	public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-		renderTransparentBackground(guiGraphics);
-		guiGraphics.blit(TEXTURE, leftPos, topPos, 0, 0, xSize, ySize);
+		renderBackground(guiGraphics);
+		guiGraphics.blit(TEXTURE, startX, startY, 0, 0, xSize, ySize);
+		super.render(guiGraphics, mouseX, mouseY, partialTicks);
+		guiGraphics.drawWordWrap(font, editModule, startX + xSize / 2 - font.width(editModule) / 2, startY + 6, width, 4210752);
 	}
 
 	@Override
@@ -181,11 +183,21 @@ public class EditModuleScreen extends Screen {
 		if (inputField.getValue().isEmpty())
 			return;
 
-		ListModuleData listModuleData = module.getOrDefault(SCContent.LIST_MODULE_DATA, ListModuleData.EMPTY);
+		if (module.getTag() == null)
+			module.setTag(new CompoundTag());
 
-		listModuleData = listModuleData.addPlayer(module, inputField.getValue());
+		for (int i = 1; i <= ModuleItem.MAX_PLAYERS; i++) {
+			if (module.getTag().contains("Player" + i) && module.getTag().getString("Player" + i).equals(inputField.getValue())) {
+				if (i == 9)
+					addPlayerButton.active = false;
 
-		if (listModuleData.players().size() == ListModuleData.MAX_PLAYERS)
+				return;
+			}
+		}
+
+		module.getTag().putString("Player" + getNextFreeSlot(module.getTag()), inputField.getValue());
+
+		if (module.getTag() != null && module.getTag().contains("Player" + ModuleItem.MAX_PLAYERS))
 			addPlayerButton.active = false;
 
 		inputField.setValue("");
@@ -203,30 +215,37 @@ public class EditModuleScreen extends Screen {
 		if (inputField.getValue().isEmpty())
 			return;
 
-		module.getOrDefault(SCContent.LIST_MODULE_DATA, ListModuleData.EMPTY).removePlayer(module, inputField.getValue());
+		if (module.getTag() == null)
+			module.setTag(new CompoundTag());
+
+		for (int i = 1; i <= ModuleItem.MAX_PLAYERS; i++) {
+			if (module.getTag().contains("Player" + i) && module.getTag().getString("Player" + i).equals(inputField.getValue())) {
+				module.getTag().remove("Player" + i);
+				defragmentTag(module.getTag());
+			}
+		}
+
 		inputField.setValue("");
 		updateButtonStates();
 	}
 
 	private void copyButtonClicked(Button button) {
-		savedData = module.get(SCContent.LIST_MODULE_DATA);
+		savedModule = module.getTag().copy();
 		copyButton.active = false;
 		updateButtonStates();
 	}
 
 	private void pasteButtonClicked(Button button) {
-		if (savedData != null) {
-			module.set(SCContent.LIST_MODULE_DATA, new ListModuleData(ImmutableList.copyOf(savedData.players()), ImmutableList.copyOf(savedData.teams()), savedData.affectEveryone()));
-			updateButtonStates();
-			refreshFromComponent();
-		}
+		module.setTag(savedModule.copy());
+		updateButtonStates();
+		refreshFromNbt();
 	}
 
 	private void clearButtonClicked(Button button) {
-		module.set(SCContent.LIST_MODULE_DATA, ListModuleData.EMPTY);
+		module.setTag(new CompoundTag());
 		inputField.setValue("");
 		updateButtonStates(true);
-		refreshFromComponent();
+		refreshFromNbt();
 	}
 
 	private void updateButtonStates() {
@@ -234,40 +253,71 @@ public class EditModuleScreen extends Screen {
 	}
 
 	private void updateButtonStates(boolean cleared) {
-		ListModuleData listModuleData = module.getOrDefault(SCContent.LIST_MODULE_DATA, ListModuleData.EMPTY);
-		boolean hasNoData = listModuleData.equals(ListModuleData.EMPTY) || (listModuleData.affectEveryone() && listModuleData.players().isEmpty() && listModuleData.teams().isEmpty());
+		CompoundTag tag = module.getOrCreateTag();
+		boolean tagIsConsideredEmpty = tag.isEmpty() || (tag.size() == 1 && tag.contains("affectEveryone"));
 
-		if (!cleared && hasNoData) {
+		if (!cleared && tagIsConsideredEmpty) {
 			addPlayerButton.active = false;
 			removePlayerButton.active = false;
 		}
 		else {
-			addPlayerButton.active = listModuleData.players().size() < ListModuleData.MAX_PLAYERS && !inputField.getValue().isEmpty();
+			addPlayerButton.active = !tag.contains("Player" + ModuleItem.MAX_PLAYERS) && !inputField.getValue().isEmpty();
 			removePlayerButton.active = !inputField.getValue().isEmpty();
 		}
 
-		boolean isSameTag = !hasNoData && listModuleData.equals(savedData);
-
-		copyButton.active = !isSameTag;
-		pasteButton.active = savedData != null && !savedData.equals(ListModuleData.EMPTY) && !isSameTag;
-		clearButton.active = !hasNoData;
+		copyButton.active = !tagIsConsideredEmpty && !tag.equals(savedModule);
+		pasteButton.active = savedModule != null && !savedModule.isEmpty() && !tag.equals(savedModule);
+		clearButton.active = !tagIsConsideredEmpty;
 	}
 
-	private void refreshFromComponent() {
-		ListModuleData listModuleData = module.get(SCContent.LIST_MODULE_DATA);
-
-		if (listModuleData == null || listModuleData.equals(ListModuleData.EMPTY)) {
+	private void refreshFromNbt() {
+		if (!module.hasTag()) {
 			availableTeams.forEach(team -> teamsListedStatus.put(team, false));
 			affectEveryPlayerCheckbox.setSelected(false);
 		}
 		else {
-			availableTeams.forEach(team -> teamsListedStatus.put(team, listModuleData.teams().contains(team.getName())));
-			affectEveryPlayerCheckbox.setSelected(listModuleData.affectEveryone());
+			CompoundTag tag = module.getTag();
+			//@formatter:off
+			List<String> teamNames = tag.getList("ListedTeams", Tag.TAG_STRING)
+					.stream()
+					.filter(StringTag.class::isInstance)
+					.map(e -> ((StringTag) e).getAsString())
+					.toList();
+			//@formatter:on
+
+			availableTeams.forEach(team -> teamsListedStatus.put(team, teamNames.contains(team.getName())));
+			affectEveryPlayerCheckbox.setSelected(tag.getBoolean("affectEveryone"));
+		}
+	}
+
+	private int getNextFreeSlot(CompoundTag tag) {
+		for (int i = 1; i <= ModuleItem.MAX_PLAYERS; i++) {
+			if (!tag.contains("Player" + i) || tag.getString("Player" + i).isEmpty())
+				return i;
+		}
+
+		return 0;
+	}
+
+	private void defragmentTag(CompoundTag tag) {
+		Deque<Integer> freeIndices = new ArrayDeque<>();
+
+		for (int i = 1; i <= ModuleItem.MAX_PLAYERS; i++) {
+			if (!tag.contains("Player" + i) || tag.getString("Player" + i).isEmpty())
+				freeIndices.add(i);
+			else if (!freeIndices.isEmpty()) {
+				String player = tag.getString("Player" + i);
+				int nextFreeIndex = freeIndices.poll();
+
+				tag.putString("Player" + nextFreeIndex, player);
+				tag.remove("Player" + i);
+				freeIndices.add(i);
+			}
 		}
 	}
 
 	class PlayerList extends ScrollPanel {
-		private static final int SLOT_HEIGHT = 12, LIST_LENGTH = ListModuleData.MAX_PLAYERS;
+		private static final int SLOT_HEIGHT = 12, LIST_LENGTH = ModuleItem.MAX_PLAYERS;
 		private int selectedIndex = -1;
 
 		public PlayerList(Minecraft client, int width, int height, int top, int left) {
@@ -288,11 +338,10 @@ public class EditModuleScreen extends Screen {
 		public boolean mouseClicked(double mouseX, double mouseY, int button) {
 			if (isMouseOver(mouseX, mouseY) && mouseX < left + width - 6) {
 				int clickedIndex = ((int) (mouseY - top + scrollDistance - border)) / SLOT_HEIGHT;
-				ListModuleData listModuleData = module.getOrDefault(SCContent.LIST_MODULE_DATA, ListModuleData.EMPTY);
 
-				if (clickedIndex < listModuleData.players().size()) {
+				if (module.hasTag() && module.getTag().contains("Player" + (clickedIndex + 1))) {
 					selectedIndex = clickedIndex;
-					inputField.setValue(listModuleData.players().get(clickedIndex));
+					inputField.setValue(module.getTag().getString("Player" + (clickedIndex + 1)));
 				}
 			}
 
@@ -300,35 +349,30 @@ public class EditModuleScreen extends Screen {
 		}
 
 		@Override
-		protected void drawBackground(GuiGraphics guiGraphics, Tesselator tess, float partialTick) {
-			drawGradientRect(guiGraphics, left, top, right, bottom, 0xC0101010, 0xD0101010);
-		}
-
-		@Override
 		protected void drawPanel(GuiGraphics guiGraphics, int entryRight, int relativeY, Tesselator tessellator, int mouseX, int mouseY) {
-			ListModuleData listModuleData = module.get(SCContent.LIST_MODULE_DATA);
-
-			if (listModuleData != null) {
+			if (module.hasTag()) {
+				CompoundTag tag = module.getTag();
 				int baseY = top + border - (int) scrollDistance;
 				int mouseListY = (int) (mouseY - top + scrollDistance - border);
 				int slotIndex = mouseListY / SLOT_HEIGHT;
-				List<String> players = listModuleData.players();
 
 				//highlight hovered slot
 				if (slotIndex != selectedIndex && mouseX >= left && mouseX < right - 6 && slotIndex >= 0 && mouseListY >= 0 && slotIndex < LIST_LENGTH && mouseY >= top && mouseY <= bottom) {
-					if (slotIndex < players.size() && !players.get(slotIndex).isBlank())
-						renderBox(tessellator, left, entryRight - 6, baseY + slotIndex * SLOT_HEIGHT, SLOT_HEIGHT - 4, 0x80);
+					if (tag.contains("Player" + (slotIndex + 1)) && !tag.getString("Player" + (slotIndex + 1)).isEmpty())
+						renderBox(tessellator.getBuilder(), left, entryRight - 6, baseY + slotIndex * SLOT_HEIGHT, SLOT_HEIGHT - 4, 0x80);
 				}
 
 				if (selectedIndex >= 0)
-					renderBox(tessellator, left, entryRight - 6, baseY + selectedIndex * SLOT_HEIGHT, SLOT_HEIGHT - 4, 0xFF);
+					renderBox(tessellator.getBuilder(), left, entryRight - 6, baseY + selectedIndex * SLOT_HEIGHT, SLOT_HEIGHT - 4, 0xFF);
 
 				//draw entry strings
-				for (int i = 0; i < players.size(); i++) {
-					String name = players.get(i);
+				for (int i = 0; i < ModuleItem.MAX_PLAYERS; i++) {
+					if (tag.contains("Player" + (i + 1))) {
+						String name = tag.getString("Player" + (i + 1));
 
-					if (!name.isEmpty())
-						guiGraphics.drawString(font, name, left - 2 + width / 2 - font.width(name) / 2, relativeY + (SLOT_HEIGHT * i), 0xC6C6C6, false);
+						if (!name.isEmpty())
+							guiGraphics.drawString(font, name, left - 2 + width / 2 - font.width(name) / 2, relativeY + (SLOT_HEIGHT * i), 0xC6C6C6, false);
+					}
 				}
 			}
 		}
@@ -389,11 +433,6 @@ public class EditModuleScreen extends Screen {
 		}
 
 		@Override
-		protected void drawBackground(GuiGraphics guiGraphics, Tesselator tess, float partialTick) {
-			drawGradientRect(guiGraphics, left, top, right, bottom, 0xC0101010, 0xD0101010);
-		}
-
-		@Override
 		public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
 			if (active) {
 				super.render(guiGraphics, mouseX, mouseY, partialTick);
@@ -421,7 +460,7 @@ public class EditModuleScreen extends Screen {
 
 			//highlight hovered slot
 			if (slotIndex != selectedIndex && mouseX >= left && mouseX < right - 6 && slotIndex >= 0 && mouseListY >= 0 && slotIndex < listLength && mouseY >= top && mouseY <= bottom)
-				renderBox(tessellator, left, entryRight - 6, baseY + slotIndex * SLOT_HEIGHT, SLOT_HEIGHT - 4, 0x80);
+				renderBox(tessellator.getBuilder(), left, entryRight - 6, baseY + slotIndex * SLOT_HEIGHT, SLOT_HEIGHT - 4, 0x80);
 
 			//draw entry strings and indicators whether the filter is enabled
 			for (int i = 0; i < listLength; i++) {
@@ -429,13 +468,19 @@ public class EditModuleScreen extends Screen {
 				PlayerTeam team = availableTeams.get(i);
 
 				guiGraphics.drawString(font, team.getDisplayName(), left + 15, yStart, 0xC6C6C6, false);
-				guiGraphics.blitSprite(teamsListedStatus.get(team) ? CONFIRM_SPRITE : CANCEL_SPRITE, left + 1, yStart - 3, 12, 12);
+				guiGraphics.blit(BEACON_GUI, left, yStart - 3, 14, 14, teamsListedStatus.get(team) ? 88 : 110, 219, 21, 22, 256, 256);
 			}
 		}
 
-		private void toggleTeam(PlayerTeam teamToToggle) {
-			teamsListedStatus.put(teamToToggle, !teamsListedStatus.get(teamToToggle));
-			module.getOrDefault(SCContent.LIST_MODULE_DATA, ListModuleData.EMPTY).toggleTeam(module, teamToToggle.getName());
+		private void toggleTeam(PlayerTeam teamToAdd) {
+			ListTag listedTeams = new ListTag();
+
+			teamsListedStatus.put(teamToAdd, !teamsListedStatus.get(teamToAdd));
+			teamsListedStatus.forEach((team, listed) -> {
+				if (listed)
+					listedTeams.add(StringTag.valueOf(team.getName()));
+			});
+			module.getOrCreateTag().put("ListedTeams", listedTeams);
 			updateButtonStates();
 		}
 
@@ -454,26 +499,24 @@ public class EditModuleScreen extends Screen {
 		}
 
 		@Override
-		public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+		public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
 			return false;
 		}
 	}
 
-	private void renderBox(Tesselator tesselator, int min, int max, int slotTop, int slotBuffer, int borderColor) {
-		BufferBuilder bufferBuilder;
-
+	private void renderBox(BufferBuilder bufferBuilder, int min, int max, int slotTop, int slotBuffer, int borderColor) {
 		RenderSystem.enableBlend();
 		RenderSystem.defaultBlendFunc();
-		bufferBuilder = tesselator.begin(Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
-		bufferBuilder.addVertex(min, slotTop + slotBuffer + 2, 0).setColor(borderColor, borderColor, borderColor, 0xFF);
-		bufferBuilder.addVertex(max, slotTop + slotBuffer + 2, 0).setColor(borderColor, borderColor, borderColor, 0xFF);
-		bufferBuilder.addVertex(max, slotTop - 2, 0).setColor(borderColor, borderColor, borderColor, 0xFF);
-		bufferBuilder.addVertex(min, slotTop - 2, 0).setColor(borderColor, borderColor, borderColor, 0xFF);
-		bufferBuilder.addVertex(min + 1, slotTop + slotBuffer + 1, 0).setColor(0x00, 0x00, 0x00, 0xFF);
-		bufferBuilder.addVertex(max - 1, slotTop + slotBuffer + 1, 0).setColor(0x00, 0x00, 0x00, 0xFF);
-		bufferBuilder.addVertex(max - 1, slotTop - 1, 0).setColor(0x00, 0x00, 0x00, 0xFF);
-		bufferBuilder.addVertex(min + 1, slotTop - 1, 0).setColor(0x00, 0x00, 0x00, 0xFF);
-		BufferUploader.drawWithShader(bufferBuilder.buildOrThrow());
+		bufferBuilder.begin(Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+		bufferBuilder.vertex(min, slotTop + slotBuffer + 2, 0).color(borderColor, borderColor, borderColor, 0xFF).endVertex();
+		bufferBuilder.vertex(max, slotTop + slotBuffer + 2, 0).color(borderColor, borderColor, borderColor, 0xFF).endVertex();
+		bufferBuilder.vertex(max, slotTop - 2, 0).color(borderColor, borderColor, borderColor, 0xFF).endVertex();
+		bufferBuilder.vertex(min, slotTop - 2, 0).color(borderColor, borderColor, borderColor, 0xFF).endVertex();
+		bufferBuilder.vertex(min + 1, slotTop + slotBuffer + 1, 0).color(0x00, 0x00, 0x00, 0xFF).endVertex();
+		bufferBuilder.vertex(max - 1, slotTop + slotBuffer + 1, 0).color(0x00, 0x00, 0x00, 0xFF).endVertex();
+		bufferBuilder.vertex(max - 1, slotTop - 1, 0).color(0x00, 0x00, 0x00, 0xFF).endVertex();
+		bufferBuilder.vertex(min + 1, slotTop - 1, 0).color(0x00, 0x00, 0x00, 0xFF).endVertex();
+		BufferUploader.drawWithShader(bufferBuilder.end());
 		RenderSystem.disableBlend();
 	}
 }

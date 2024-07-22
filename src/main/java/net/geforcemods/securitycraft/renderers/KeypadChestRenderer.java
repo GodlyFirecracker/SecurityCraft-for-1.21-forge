@@ -2,11 +2,17 @@ package net.geforcemods.securitycraft.renderers;
 
 import java.util.Calendar;
 
-import net.geforcemods.securitycraft.SecurityCraft;
+import com.mojang.blaze3d.vertex.PoseStack;
+
+import net.geforcemods.securitycraft.ClientHandler;
+import net.geforcemods.securitycraft.api.IModuleInventory;
+import net.geforcemods.securitycraft.misc.ModuleType;
+import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.Sheets;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.client.renderer.blockentity.ChestRenderer;
 import net.minecraft.client.resources.model.Material;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.state.properties.ChestType;
 
@@ -32,6 +38,14 @@ public class KeypadChestRenderer extends ChestRenderer<ChestBlockEntity> {
 	}
 
 	@Override
+	public void render(ChestBlockEntity be, float partialTicks, PoseStack poseStack, MultiBufferSource buffer, int packedLight, int packedOverlay) {
+		ClientHandler.DISGUISED_BLOCK_RENDER_DELEGATE.tryRenderDelegate(be, partialTicks, poseStack, buffer, packedLight, packedOverlay);
+
+		if (be instanceof IModuleInventory moduleInv && !moduleInv.isModuleEnabled(ModuleType.DISGUISE))
+			super.render(be, partialTicks, poseStack, buffer, packedLight, packedOverlay);
+	}
+
+	@Override
 	protected Material getMaterial(ChestBlockEntity be, ChestType type) {
 		if (isChristmas)
 			return getMaterialForType(type, CHRISTMAS_LEFT, CHRISTMAS_RIGHT, CHRISTMAS);
@@ -51,6 +65,6 @@ public class KeypadChestRenderer extends ChestRenderer<ChestBlockEntity> {
 	}
 
 	private static Material createMaterial(String name) {
-		return new Material(Sheets.CHEST_SHEET, SecurityCraft.resLoc("entity/chest/" + name));
+		return new Material(Sheets.CHEST_SHEET, new ResourceLocation("securitycraft", "entity/chest/" + name));
 	}
 }

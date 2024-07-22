@@ -3,6 +3,7 @@ package net.geforcemods.securitycraft.screen.components;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
@@ -11,7 +12,6 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat.Mode;
 
-import net.geforcemods.securitycraft.SecurityCraft;
 import net.geforcemods.securitycraft.screen.components.SSSConnectionList.ConnectionAccessor;
 import net.geforcemods.securitycraft.util.Utils;
 import net.minecraft.client.Minecraft;
@@ -20,17 +20,17 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
-import net.minecraft.core.GlobalPos;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.Nameable;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.neoforged.neoforge.client.gui.widget.ScrollPanel;
+import net.minecraftforge.client.gui.widget.ScrollPanel;
 
 public class SSSConnectionList<T extends Screen & ConnectionAccessor> extends ScrollPanel {
-	private static final ResourceLocation CANCEL_SPRITE = SecurityCraft.mcResLoc("container/beacon/cancel");
+	private static final ResourceLocation BEACON_GUI = new ResourceLocation("textures/gui/container/beacon.png");
 	private static final int SLOT_HEIGHT = 12;
 	private final T parent;
 	private final List<ConnectionInfo> connectionInfo = new ArrayList<>();
@@ -48,11 +48,8 @@ public class SSSConnectionList<T extends Screen & ConnectionAccessor> extends Sc
 
 		connectionInfo.clear();
 
-		for (GlobalPos globalPos : parent.getPositions()) {
-			if (globalPos == null)
-				continue;
-
-			BlockEntity be = level.getBlockEntity(globalPos.pos());
+		for (BlockPos pos : parent.getPositions()) {
+			BlockEntity be = level.getBlockEntity(pos);
 			Component blockName;
 
 			if (be instanceof Nameable nameable)
@@ -62,7 +59,7 @@ public class SSSConnectionList<T extends Screen & ConnectionAccessor> extends Sc
 			else
 				blockName = Component.literal("????");
 
-			connectionInfo.add(new ConnectionInfo(globalPos, blockName));
+			connectionInfo.add(new ConnectionInfo(pos, blockName));
 		}
 	}
 
@@ -77,11 +74,6 @@ public class SSSConnectionList<T extends Screen & ConnectionAccessor> extends Sc
 	}
 
 	@Override
-	protected void drawBackground(GuiGraphics guiGraphics, Tesselator tess, float partialTick) {
-		drawGradientRect(guiGraphics, left, top, right, bottom, 0xC0101010, 0xD0101010);
-	}
-
-	@Override
 	protected void drawPanel(GuiGraphics guiGraphics, int entryRight, int relativeY, Tesselator tesselator, int mouseX, int mouseY) {
 		int baseY = top + border - (int) scrollDistance;
 		int slotBuffer = SLOT_HEIGHT - 4;
@@ -93,23 +85,23 @@ public class SSSConnectionList<T extends Screen & ConnectionAccessor> extends Sc
 			int min = left;
 			int max = entryRight - 6; //6 is the width of the scrollbar
 			int slotTop = baseY + slotIndex * SLOT_HEIGHT;
-			BufferBuilder bufferBuilder;
+			BufferBuilder bufferBuilder = tesselator.getBuilder();
 
 			RenderSystem.enableBlend();
 			RenderSystem.defaultBlendFunc();
-			bufferBuilder = tesselator.begin(Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
-			bufferBuilder.addVertex(min, slotTop + slotBuffer + 2, 0).setColor(0x80, 0x80, 0x80, 0xFF);
-			bufferBuilder.addVertex(max, slotTop + slotBuffer + 2, 0).setColor(0x80, 0x80, 0x80, 0xFF);
-			bufferBuilder.addVertex(max, slotTop - 2, 0).setColor(0x80, 0x80, 0x80, 0xFF);
-			bufferBuilder.addVertex(min, slotTop - 2, 0).setColor(0x80, 0x80, 0x80, 0xFF);
-			bufferBuilder.addVertex(min + 1, slotTop + slotBuffer + 1, 0).setColor(0x00, 0x00, 0x00, 0xFF);
-			bufferBuilder.addVertex(max - 1, slotTop + slotBuffer + 1, 0).setColor(0x00, 0x00, 0x00, 0xFF);
-			bufferBuilder.addVertex(max - 1, slotTop - 1, 0).setColor(0x00, 0x00, 0x00, 0xFF);
-			bufferBuilder.addVertex(min + 1, slotTop - 1, 0).setColor(0x00, 0x00, 0x00, 0xFF);
-			BufferUploader.drawWithShader(bufferBuilder.buildOrThrow());
+			bufferBuilder.begin(Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+			bufferBuilder.vertex(min, slotTop + slotBuffer + 2, 0).color(0x80, 0x80, 0x80, 0xFF).endVertex();
+			bufferBuilder.vertex(max, slotTop + slotBuffer + 2, 0).color(0x80, 0x80, 0x80, 0xFF).endVertex();
+			bufferBuilder.vertex(max, slotTop - 2, 0).color(0x80, 0x80, 0x80, 0xFF).endVertex();
+			bufferBuilder.vertex(min, slotTop - 2, 0).color(0x80, 0x80, 0x80, 0xFF).endVertex();
+			bufferBuilder.vertex(min + 1, slotTop + slotBuffer + 1, 0).color(0x00, 0x00, 0x00, 0xFF).endVertex();
+			bufferBuilder.vertex(max - 1, slotTop + slotBuffer + 1, 0).color(0x00, 0x00, 0x00, 0xFF).endVertex();
+			bufferBuilder.vertex(max - 1, slotTop - 1, 0).color(0x00, 0x00, 0x00, 0xFF).endVertex();
+			bufferBuilder.vertex(min + 1, slotTop - 1, 0).color(0x00, 0x00, 0x00, 0xFF).endVertex();
+			BufferUploader.drawWithShader(bufferBuilder.end());
 			RenderSystem.disableBlend();
 
-			guiGraphics.blitSprite(CANCEL_SPRITE, left + 2, slotTop - 2, 11, 11);
+			guiGraphics.blit(BEACON_GUI, left, slotTop - 3, 14, 14, 110, 219, 21, 22, 256, 256);
 		}
 
 		int i = 0;
@@ -137,7 +129,7 @@ public class SSSConnectionList<T extends Screen & ConnectionAccessor> extends Sc
 			if (length + 13 >= width - 6) //6 = barWidth
 				guiGraphics.renderTooltip(font, List.of(blockName), Optional.empty(), left + 1, baseY + (SLOT_HEIGHT * slotIndex + SLOT_HEIGHT));
 
-			guiGraphics.drawString(font, Utils.getFormattedCoordinates(connectionInfo.get(slotIndex).globalPos.pos()), left + 13, top + height + 5, 4210752, false);
+			guiGraphics.drawString(font, Utils.getFormattedCoordinates(connectionInfo.get(slotIndex).pos), left + 13, top + height + 5, 4210752, false);
 		}
 	}
 
@@ -150,7 +142,7 @@ public class SSSConnectionList<T extends Screen & ConnectionAccessor> extends Sc
 			double relativeMouseY = mc.mouseHandler.ypos() * mc.getWindow().getGuiScaledHeight() / mc.getWindow().getScreenHeight();
 
 			if (relativeMouseY >= top && relativeMouseY <= bottom && mouseX < 13) {
-				parent.removePosition(connectionInfo.get(slotIndex).globalPos);
+				parent.removePosition(connectionInfo.get(slotIndex).pos);
 				Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
 				return true;
 			}
@@ -168,10 +160,10 @@ public class SSSConnectionList<T extends Screen & ConnectionAccessor> extends Sc
 	public void updateNarration(NarrationElementOutput narrationElementOutput) {}
 
 	public interface ConnectionAccessor {
-		public List<GlobalPos> getPositions();
+		public Set<BlockPos> getPositions();
 
-		public void removePosition(GlobalPos globalPos);
+		public void removePosition(BlockPos pos);
 	}
 
-	private record ConnectionInfo(GlobalPos globalPos, Component blockName) {}
+	private record ConnectionInfo(BlockPos pos, Component blockName) {}
 }

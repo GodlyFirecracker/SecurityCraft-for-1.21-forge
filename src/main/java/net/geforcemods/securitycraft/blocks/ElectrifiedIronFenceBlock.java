@@ -8,9 +8,9 @@ import net.geforcemods.securitycraft.util.LevelUtils;
 import net.minecraft.Util;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.data.models.blockstates.PropertyDispatch.QuadFunction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LightningBolt;
@@ -143,7 +143,7 @@ public class ElectrifiedIronFenceBlock extends OwnableBlock {
 	}
 
 	@Override
-	public boolean isPathfindable(BlockState state, PathComputationType type) {
+	public boolean isPathfindable(BlockState state, BlockGetter level, BlockPos pos, PathComputationType type) {
 		return false;
 	}
 
@@ -194,19 +194,19 @@ public class ElectrifiedIronFenceBlock extends OwnableBlock {
 	}
 
 	@Override
-	public InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
+	public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
 		return InteractionResult.FAIL;
 	}
 
 	@Override
 	public void entityInside(BlockState state, Level level, BlockPos pos, Entity entity) {
-		hurtOrConvertEntity(this::getShape, state, level, pos, entity);
+		hurtOrConvertEntity(this, state, level, pos, entity);
 	}
 
-	public static void hurtOrConvertEntity(QuadFunction<BlockState, BlockGetter, BlockPos, CollisionContext, VoxelShape> shapeGetter, BlockState state, Level level, BlockPos pos, Entity entity) {
+	public static void hurtOrConvertEntity(Block electrifiedBlock, BlockState state, Level level, BlockPos pos, Entity entity) {
 		if (level.getGameTime() % 20 != 0)
 			return;
-		else if (entity.isRemoved() || !shapeGetter.apply(state, level, pos, CollisionContext.of(entity)).bounds().move(pos).inflate(0.01D).intersects(entity.getBoundingBox()))
+		else if (entity.isRemoved() || !electrifiedBlock.getShape(state, level, pos, CollisionContext.of(entity)).bounds().move(pos).inflate(0.01D).intersects(entity.getBoundingBox()))
 			return;
 		else if (entity instanceof ItemEntity) //so dropped items don't get destroyed
 			return;

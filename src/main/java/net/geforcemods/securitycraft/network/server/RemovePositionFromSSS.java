@@ -1,39 +1,38 @@
 package net.geforcemods.securitycraft.network.server;
 
+import java.util.function.Supplier;
+
 import net.geforcemods.securitycraft.SCContent;
-import net.geforcemods.securitycraft.SecurityCraft;
-import net.geforcemods.securitycraft.components.GlobalPositions;
+import net.geforcemods.securitycraft.items.SonicSecuritySystemItem;
 import net.geforcemods.securitycraft.util.PlayerUtils;
-import net.minecraft.core.GlobalPos;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.network.NetworkEvent;
 
-public record RemovePositionFromSSS(GlobalPos globalPos) implements CustomPacketPayload {
-	public static final Type<RemovePositionFromSSS> TYPE = new Type<>(SecurityCraft.resLoc("remove_position_from_sss"));
-	//@formatter:off
-	public static final StreamCodec<RegistryFriendlyByteBuf, RemovePositionFromSSS> STREAM_CODEC = StreamCodec.composite(
-			GlobalPos.STREAM_CODEC, RemovePositionFromSSS::globalPos,
-			RemovePositionFromSSS::new);
-	//@formatter:on
+public class RemovePositionFromSSS {
+	private BlockPos pos;
 
-	@Override
-	public Type<? extends CustomPacketPayload> type() {
-		return TYPE;
+	public RemovePositionFromSSS() {}
+
+	public RemovePositionFromSSS(BlockPos pos) {
+		this.pos = pos;
 	}
 
-	public void handle(IPayloadContext ctx) {
-		Player player = ctx.player();
+	public RemovePositionFromSSS(FriendlyByteBuf buf) {
+		pos = buf.readBlockPos();
+	}
+
+	public void encode(FriendlyByteBuf buf) {
+		buf.writeBlockPos(pos);
+	}
+
+	public void handle(Supplier<NetworkEvent.Context> ctx) {
+		Player player = ctx.get().getSender();
 		ItemStack stack = PlayerUtils.getItemStackFromAnyHand(player, SCContent.SONIC_SECURITY_SYSTEM_ITEM.get());
 
-		if (!stack.isEmpty()) {
-			GlobalPositions sssLinkedBlocks = stack.get(SCContent.SSS_LINKED_BLOCKS);
-
-			if (sssLinkedBlocks != null)
-				sssLinkedBlocks.remove(SCContent.SSS_LINKED_BLOCKS, stack, globalPos);
-		}
+		if (!stack.isEmpty())
+			SonicSecuritySystemItem.removeLinkedBlock(stack.getOrCreateTag(), pos);
 	}
 }

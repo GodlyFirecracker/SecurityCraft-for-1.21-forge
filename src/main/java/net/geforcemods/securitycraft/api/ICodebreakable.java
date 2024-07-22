@@ -1,15 +1,15 @@
 package net.geforcemods.securitycraft.api;
 
+import net.geforcemods.securitycraft.ConfigHandler;
 import net.geforcemods.securitycraft.SCContent;
 import net.geforcemods.securitycraft.SecurityCraft;
-import net.geforcemods.securitycraft.components.CodebreakerData;
 import net.geforcemods.securitycraft.items.CodebreakerItem;
 import net.geforcemods.securitycraft.util.PlayerUtils;
 import net.geforcemods.securitycraft.util.Utils;
 import net.minecraft.ChatFormatting;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 
@@ -43,8 +43,7 @@ public interface ICodebreakable {
 	 * @return true if the codebreaking attempt was successful, false otherwise
 	 */
 	public default boolean handleCodebreaking(Player player, InteractionHand hand) {
-		ItemStack codebreaker = player.getItemInHand(hand);
-		double chance = CodebreakerItem.getSuccessChance(codebreaker);
+		double chance = ConfigHandler.SERVER.codebreakerChance.get();
 
 		if (chance < 0.0D)
 			PlayerUtils.sendMessageToPlayer(player, Utils.localize(SCContent.CODEBREAKER.get().getDescriptionId()), Utils.localize("messages.securitycraft:codebreakerDisabled"), ChatFormatting.RED);
@@ -52,19 +51,23 @@ public interface ICodebreakable {
 			if (!shouldAttemptCodebreak(player))
 				return false;
 
+			ItemStack codebreaker = player.getItemInHand(hand);
+
 			if (codebreaker.is(SCContent.CODEBREAKER.get())) {
 				if (this instanceof IOwnable ownable && ownable.isOwnedBy(player) && !player.isCreative()) {
 					PlayerUtils.sendMessageToPlayer(player, Utils.localize(SCContent.CODEBREAKER.get().getDescriptionId()), Utils.localize("messages.securitycraft:codebreaker.owned"), ChatFormatting.RED);
 					return false;
 				}
 
-				if (!player.isCreative() && codebreaker.getOrDefault(SCContent.CODEBREAKER_DATA, CodebreakerData.DEFAULT).wasRecentlyUsed())
+				if (!player.isCreative() && CodebreakerItem.wasRecentlyUsed(codebreaker))
 					return false;
 
 				boolean isSuccessful = player.isCreative() || SecurityCraft.RANDOM.nextDouble() < chance;
+				CompoundTag tag = codebreaker.getOrCreateTag();
 
-				codebreaker.hurtAndBreak(1, player, LivingEntity.getSlotForHand(hand));
-				codebreaker.set(SCContent.CODEBREAKER_DATA, new CodebreakerData(System.currentTimeMillis(), isSuccessful));
+				codebreaker.hurtAndBreak(1, player, p -> p.broadcastBreakEvent(hand));
+				tag.putLong(CodebreakerItem.LAST_USED_TIME, System.currentTimeMillis());
+				tag.putBoolean(CodebreakerItem.WAS_SUCCESSFUL, isSuccessful);
 
 				if (isSuccessful)
 					useCodebreaker(player);

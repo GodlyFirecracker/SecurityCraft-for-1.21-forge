@@ -11,16 +11,15 @@ import net.geforcemods.securitycraft.util.BlockUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.NonNullList;
-import net.minecraft.core.component.DataComponents;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.component.ItemContainerContents;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelAccessor;
-import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Mirror;
 import net.minecraft.world.level.block.ShulkerBoxBlock;
@@ -42,7 +41,7 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 
 public class InventoryScannerFieldBlock extends OwnableBlock implements IOverlayDisplay, SimpleWaterloggedBlock {
 	public static final DirectionProperty FACING = BlockStateProperties.HORIZONTAL_FACING;
-	public static final BooleanProperty HORIZONTAL = InventoryScannerBlock.HORIZONTAL;
+	public static final BooleanProperty HORIZONTAL = BooleanProperty.create("horizontal");
 	public static final BooleanProperty WATERLOGGED = BlockStateProperties.WATERLOGGED;
 	private static final VoxelShape SHAPE_EW = Block.box(0, 0, 6, 16, 16, 10);
 	private static final VoxelShape SHAPE_NS = Block.box(6, 0, 0, 10, 16, 16);
@@ -201,13 +200,11 @@ public class InventoryScannerFieldBlock extends OwnableBlock implements IOverlay
 	}
 
 	private static boolean checkForShulkerBox(ItemStack item, ItemStack stackToCheck, InventoryScannerBlockEntity be, boolean hasSmartModule, boolean hasStorageModule, boolean hasRedstoneModule) {
-		if (item != null && !item.isEmpty() && Block.byItem(item.getItem()) instanceof ShulkerBoxBlock) {
-			NonNullList<ItemStack> list = NonNullList.withSize(27, ItemStack.EMPTY);
-
-			item.getOrDefault(DataComponents.CONTAINER, ItemContainerContents.EMPTY).copyInto(list);
+		if (item != null && !item.isEmpty() && item.getTag() != null && Block.byItem(item.getItem()) instanceof ShulkerBoxBlock) {
+			ListTag list = item.getTag().getCompound("BlockEntityTag").getList("Items", Tag.TAG_COMPOUND);
 
 			for (int i = 0; i < list.size(); i++) {
-				ItemStack itemInChest = list.get(i);
+				ItemStack itemInChest = ItemStack.of(list.getCompound(i));
 
 				if (areItemsEqual(itemInChest, stackToCheck, hasSmartModule)) {
 					if (hasStorageModule) {
@@ -216,8 +213,7 @@ public class InventoryScannerFieldBlock extends OwnableBlock implements IOverlay
 						if (!remainder.isEmpty())
 							Block.popResource(be.getLevel(), be.getBlockPos(), remainder.copy());
 
-						list.set(i, ItemStack.EMPTY);
-						item.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(list));
+						list.remove(i);
 					}
 
 					if (hasRedstoneModule)
@@ -232,7 +228,7 @@ public class InventoryScannerFieldBlock extends OwnableBlock implements IOverlay
 	}
 
 	private static boolean areItemsEqual(ItemStack firstItemStack, ItemStack secondItemStack, boolean hasSmartModule) {
-		return (hasSmartModule && areItemStacksEqual(firstItemStack, secondItemStack) && ItemStack.isSameItemSameComponents(firstItemStack, secondItemStack)) || (!hasSmartModule && firstItemStack.getItem() == secondItemStack.getItem());
+		return (hasSmartModule && areItemStacksEqual(firstItemStack, secondItemStack) && ItemStack.isSameItemSameTags(firstItemStack, secondItemStack)) || (!hasSmartModule && firstItemStack.getItem() == secondItemStack.getItem());
 	}
 
 	private static void updateInventoryScannerPower(InventoryScannerBlockEntity be) {
@@ -294,7 +290,7 @@ public class InventoryScannerFieldBlock extends OwnableBlock implements IOverlay
 	}
 
 	@Override
-	public ItemStack getCloneItemStack(BlockState state, HitResult target, LevelReader level, BlockPos pos, Player player) {
+	public ItemStack getCloneItemStack(BlockState state, HitResult target, BlockGetter level, BlockPos pos, Player player) {
 		return ItemStack.EMPTY;
 	}
 

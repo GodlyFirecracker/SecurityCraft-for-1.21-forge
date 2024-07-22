@@ -2,8 +2,7 @@ package net.geforcemods.securitycraft.mixin.camera;
 
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-
-import com.llamalad7.mixinextras.injector.v2.WrapWithCondition;
+import org.spongepowered.asm.mixin.injection.Redirect;
 
 import net.geforcemods.securitycraft.ClientHandler;
 import net.minecraft.client.CameraType;
@@ -15,8 +14,9 @@ import net.minecraft.client.Options;
  */
 @Mixin(value = Minecraft.class, priority = 1100)
 public class MinecraftMixin {
-	@WrapWithCondition(method = "handleKeybinds", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Options;setCameraType(Lnet/minecraft/client/CameraType;)V"))
-	private boolean securitycraft$mayChangeCameraType(Options options, CameraType newType) {
-		return !ClientHandler.isPlayerMountedOnCamera();
+	@Redirect(method = "handleKeybinds", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Options;setCameraType(Lnet/minecraft/client/CameraType;)V"))
+	private void securitycraft$preventCameraSwitching(Options options, CameraType newType) {
+		if (!ClientHandler.isPlayerMountedOnCamera())
+			options.setCameraType(newType);
 	}
 }

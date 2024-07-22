@@ -7,8 +7,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-
-import com.llamalad7.mixinextras.sugar.Local;
+import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 
 import net.geforcemods.securitycraft.SCTags;
 import net.geforcemods.securitycraft.blockentities.BrushableMineBlockEntity;
@@ -35,18 +34,18 @@ public class BrushItemMixin {
 	 * in creative mode, this has to be adjusted for them.
 	 */
 	@Inject(method = "calculateHitResult", at = @At("HEAD"), cancellable = true)
-	private void securitycraft$makeSuspiciousMinesBrushablePartTwo(Player player, CallbackInfoReturnable<HitResult> cir) {
-		Vec3 eyePosition = player.getEyePosition();
+	private void securitycraft$makeSuspiciousMinesBrushablePartTwo(LivingEntity entity, CallbackInfoReturnable<HitResult> cir) {
+		Vec3 eyePosition = entity.getEyePosition();
 		Predicate<Entity> entitySelector = e -> (e instanceof LivingEntity livingEntity ? livingEntity.canBeSeenByAnyone() : !e.isSpectator()) && e.isPickable();
-		Vec3 viewVector = player.getViewVector(0.0F).scale(5.0D);
-		Level level = player.level();
+		Vec3 viewVector = entity.getViewVector(0.0F).scale(5.0D);
+		Level level = entity.level();
 		Vec3 direction = eyePosition.add(viewVector);
-		HitResult hitResult = level.clip(new ClipContext(eyePosition, direction, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, player));
+		HitResult hitResult = level.clip(new ClipContext(eyePosition, direction, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, entity));
 
 		if (hitResult.getType() != Type.MISS)
 			direction = hitResult.getLocation();
 
-		HitResult hitResult1 = ProjectileUtil.getEntityHitResult(level, player, eyePosition, direction, player.getBoundingBox().expandTowards(viewVector).inflate(1.0D), entitySelector);
+		HitResult hitResult1 = ProjectileUtil.getEntityHitResult(level, entity, eyePosition, direction, entity.getBoundingBox().expandTowards(viewVector).inflate(1.0D), entitySelector);
 
 		if (hitResult1 != null)
 			hitResult = hitResult1;
@@ -59,13 +58,13 @@ public class BrushItemMixin {
 	 * The brush is hardcoded to only be able to successfully brush vanilla blocks. Because the suspicious mines should also
 	 * yield items when being brushed while disarmed, the brush needs to check for that as well.
 	 */
-	@Inject(method = "onUseTick", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;isClientSide()Z"), cancellable = true)
-	private void securitycraft$checkForSuspiciousMine(Level level, LivingEntity entity, ItemStack stack, int tick, CallbackInfo ci, @Local Player player, @Local BlockHitResult blockHitResult, @Local BlockPos pos, @Local BlockState brushedState) {
+	@Inject(method = "onUseTick", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;isClientSide()Z"), locals = LocalCapture.CAPTURE_FAILSOFT, cancellable = true)
+	private void securitycraft$checkForSuspiciousMine(Level level, LivingEntity entity, ItemStack stack, int tick, CallbackInfo ci, Player player, HitResult hitResult, BlockHitResult blockHitResult, int i, boolean flag, BlockPos pos, BlockState brushedState) {
 		if (!level.isClientSide() && brushedState.is(SCTags.Blocks.SUSPICIOUS_MINES) && level.getBlockEntity(pos) instanceof BrushableMineBlockEntity be) {
 			boolean brushFinished = be.brush(level.getGameTime(), player, blockHitResult.getDirection());
 
 			if (brushFinished)
-				stack.hurtAndBreak(1, player, EquipmentSlot.MAINHAND);
+				stack.hurtAndBreak(1, player, livingEntity -> livingEntity.broadcastBreakEvent(EquipmentSlot.MAINHAND));
 
 			ci.cancel();
 		}

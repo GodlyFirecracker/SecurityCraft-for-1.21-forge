@@ -28,9 +28,9 @@ import net.geforcemods.securitycraft.util.PasscodeUtils;
 import net.geforcemods.securitycraft.util.Utils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.Connection;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.resources.ResourceLocation;
@@ -42,10 +42,14 @@ import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.ChestType;
-import net.neoforged.neoforge.items.IItemHandler;
-import net.neoforged.neoforge.items.wrapper.InvWrapper;
+import net.minecraftforge.client.model.data.ModelData;
+import net.minecraftforge.common.capabilities.Capability;
+import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.common.util.LazyOptional;
+import net.minecraftforge.items.IItemHandler;
 
 public class KeypadChestBlockEntity extends ChestBlockEntity implements IPasscodeProtected, IOwnable, IModuleInventory, ICustomizable, ILockable, ISentryBulletContainer {
+	private LazyOptional<IItemHandler> insertOnlyHandler;
 	private byte[] passcode;
 	private UUID saltKey;
 	private Owner owner = new Owner();
@@ -62,11 +66,11 @@ public class KeypadChestBlockEntity extends ChestBlockEntity implements IPasscod
 	}
 
 	@Override
-	public void saveAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
+	public void saveAdditional(CompoundTag tag) {
 		long cooldownLeft;
 
-		super.saveAdditional(tag, lookupProvider);
-		writeModuleInventory(tag, lookupProvider);
+		super.saveAdditional(tag);
+		writeModuleInventory(tag);
 		writeModuleStates(tag);
 		writeOptions(tag);
 		cooldownLeft = getCooldownEnd() - System.currentTimeMillis();
@@ -86,17 +90,17 @@ public class KeypadChestBlockEntity extends ChestBlockEntity implements IPasscod
 	}
 
 	@Override
-	public void loadAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.loadAdditional(tag, lookupProvider);
+	public void load(CompoundTag tag) {
+		super.load(tag);
 
-		modules = readModuleInventory(tag, lookupProvider);
+		modules = readModuleInventory(tag);
 		moduleStates = readModuleStates(tag);
 		readOptions(tag);
 		cooldownEnd = System.currentTimeMillis() + tag.getLong("cooldownLeft");
 		loadSaltKey(tag);
 		loadPasscode(tag);
 		owner.load(tag);
-		previousChest = ResourceLocation.parse(tag.getString("previous_chest"));
+		previousChest = new ResourceLocation(tag.getString("previous_chest"));
 
 		if (tag.contains("sendMessage") && !tag.getBoolean("sendMessage")) {
 			sendAllowlistMessage.setValue(false);
@@ -105,13 +109,25 @@ public class KeypadChestBlockEntity extends ChestBlockEntity implements IPasscod
 	}
 
 	@Override
-	public CompoundTag getUpdateTag(HolderLookup.Provider lookupProvider) {
-		return PasscodeUtils.filterPasscodeAndSaltFromTag(saveCustomOnly(lookupProvider));
+	public CompoundTag getUpdateTag() {
+		return PasscodeUtils.filterPasscodeAndSaltFromTag(saveWithoutMetadata());
 	}
 
 	@Override
 	public ClientboundBlockEntityDataPacket getUpdatePacket() {
 		return ClientboundBlockEntityDataPacket.create(this);
+	}
+
+	@Override
+	public void onDataPacket(Connection net, ClientboundBlockEntityDataPacket packet) {
+		super.onDataPacket(net, packet);
+		handleUpdateTag(packet.getTag());
+	}
+
+	@Override
+	public void handleUpdateTag(CompoundTag tag) {
+		load(tag);
+		DisguisableBlockEntity.onHandleUpdateTag(this);
 	}
 
 	@Override
@@ -131,19 +147,41 @@ public class KeypadChestBlockEntity extends ChestBlockEntity implements IPasscod
 		return openersCounter.getOpenerCount();
 	}
 
-	public static IItemHandler getCapability(KeypadChestBlockEntity be, Direction side) {
-		if (BlockUtils.isAllowedToExtractFromProtectedObject(side, be))
-			return new InvWrapper(ChestBlock.getContainer((ChestBlock) be.getBlockState().getBlock(), be.getBlockState(), be.getLevel(), be.getBlockPos(), true));
+	@Override
+	public <T> LazyOptional<T> getCapability(Capability<T> cap, Direction side) {
+		if (cap == ForgeCapabilities.ITEM_HANDLER)
+			return BlockUtils.isAllowedToExtractFromProtectedObject(side, this) ? super.getCapability(cap, side) : getInsertOnlyHandler().cast();
 		else
-			return new InsertOnlyInvWrapper(be);
+			return super.getCapability(cap, side);
 	}
 
 	@Override
-	public IItemHandler getHandlerForSentry(Sentry entity) {
+	public void invalidateCaps() {
+		if (insertOnlyHandler != null)
+			insertOnlyHandler.invalidate();
+
+		super.invalidateCaps();
+	}
+
+	@Override
+	public void reviveCaps() {
+		insertOnlyHandler = null; //recreated in getInsertOnlyHandler
+		super.reviveCaps();
+	}
+
+	private LazyOptional<IItemHandler> getInsertOnlyHandler() {
+		if (insertOnlyHandler == null)
+			insertOnlyHandler = LazyOptional.of(() -> new InsertOnlyInvWrapper(KeypadChestBlockEntity.this));
+
+		return insertOnlyHandler;
+	}
+
+	@Override
+	public LazyOptional<IItemHandler> getHandlerForSentry(Sentry entity) {
 		if (entity.getOwner().owns(this))
-			return new InvWrapper(this);
+			return super.getCapability(ForgeCapabilities.ITEM_HANDLER, Direction.UP);
 		else
-			return null;
+			return LazyOptional.empty();
 	}
 
 	@Override
@@ -172,12 +210,18 @@ public class KeypadChestBlockEntity extends ChestBlockEntity implements IPasscod
 	public void onModuleInserted(ItemStack stack, ModuleType module, boolean toggled) {
 		IModuleInventory.super.onModuleInserted(stack, module, toggled);
 		addOrRemoveModuleFromAttached(stack, false, toggled);
+
+		if (module == ModuleType.DISGUISE)
+			DisguisableBlockEntity.onDisguiseModuleInserted(this, stack, toggled);
 	}
 
 	@Override
 	public void onModuleRemoved(ItemStack stack, ModuleType module, boolean toggled) {
 		IModuleInventory.super.onModuleRemoved(stack, module, toggled);
 		addOrRemoveModuleFromAttached(stack, true, toggled);
+
+		if (module == ModuleType.DISGUISE)
+			DisguisableBlockEntity.onDisguiseModuleRemoved(this, stack, toggled);
 	}
 
 	@Override
@@ -185,12 +229,18 @@ public class KeypadChestBlockEntity extends ChestBlockEntity implements IPasscod
 		KeypadChestBlockEntity otherBe = findOther();
 
 		if (otherBe != null) {
-			switch (option) {
-				case BooleanOption bo when option == sendAllowlistMessage -> otherBe.setSendsAllowlistMessage(bo.get());
-				case BooleanOption bo when option == sendDenylistMessage -> otherBe.setSendsAllowlistMessage(bo.get());
-				case IntOption io when option == smartModuleCooldown -> otherBe.smartModuleCooldown.copy(option);
-				default -> throw new UnsupportedOperationException("Unhandled option synchronization in keypad chest! " + option.getName());
+			if (option instanceof BooleanOption bo) {
+				if (option == sendAllowlistMessage)
+					otherBe.setSendsAllowlistMessage(bo.get());
+				else if (option == sendDenylistMessage)
+					otherBe.setSendsAllowlistMessage(bo.get());
+				else
+					throw new UnsupportedOperationException("Unhandled option synchronization in keypad chest! " + option.getName());
 			}
+			else if (option instanceof IntOption && option == smartModuleCooldown)
+				otherBe.smartModuleCooldown.copy(option);
+			else
+				throw new UnsupportedOperationException("Unhandled option synchronization in keypad chest! " + option.getName());
 		}
 
 		ICustomizable.super.onOptionChanged(option);
@@ -257,6 +307,12 @@ public class KeypadChestBlockEntity extends ChestBlockEntity implements IPasscod
 			otherHalf.setOwner(getOwner().getUUID(), getOwner().getName());
 
 		IOwnable.super.onOwnerChanged(state, level, pos, player, oldOwner, newOwner);
+	}
+
+	@Override
+	public void setRemoved() {
+		super.setRemoved();
+		DisguisableBlockEntity.onSetRemoved(this);
 	}
 
 	@Override
@@ -348,7 +404,7 @@ public class KeypadChestBlockEntity extends ChestBlockEntity implements IPasscod
 	@Override
 	public ModuleType[] acceptedModules() {
 		return new ModuleType[] {
-				ModuleType.ALLOWLIST, ModuleType.DENYLIST, ModuleType.REDSTONE, ModuleType.SMART, ModuleType.HARMING
+				ModuleType.ALLOWLIST, ModuleType.DENYLIST, ModuleType.REDSTONE, ModuleType.SMART, ModuleType.HARMING, ModuleType.DISGUISE
 		};
 	}
 
@@ -367,6 +423,11 @@ public class KeypadChestBlockEntity extends ChestBlockEntity implements IPasscod
 	@Override
 	public void toggleModuleState(ModuleType module, boolean shouldBeEnabled) {
 		moduleStates.put(module, shouldBeEnabled);
+	}
+
+	@Override
+	public ModelData getModelData() {
+		return DisguisableBlockEntity.getModelData(this);
 	}
 
 	public boolean sendsAllowlistMessage() {

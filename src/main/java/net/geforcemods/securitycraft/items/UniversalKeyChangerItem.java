@@ -1,18 +1,20 @@
 package net.geforcemods.securitycraft.items;
 
 import net.geforcemods.securitycraft.SCContent;
+import net.geforcemods.securitycraft.SecurityCraft;
+import net.geforcemods.securitycraft.api.IDisguisable;
 import net.geforcemods.securitycraft.api.IOwnable;
 import net.geforcemods.securitycraft.api.IPasscodeProtected;
 import net.geforcemods.securitycraft.blockentities.DisplayCaseBlockEntity;
-import net.geforcemods.securitycraft.blocks.DisguisableBlock;
-import net.geforcemods.securitycraft.components.PasscodeData;
 import net.geforcemods.securitycraft.misc.SaltData;
 import net.geforcemods.securitycraft.network.client.OpenScreen;
 import net.geforcemods.securitycraft.network.client.OpenScreen.DataType;
+import net.geforcemods.securitycraft.util.PasscodeUtils;
 import net.geforcemods.securitycraft.util.PlayerUtils;
 import net.geforcemods.securitycraft.util.Utils;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -24,7 +26,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraftforge.network.PacketDistributor;
 
 public class UniversalKeyChangerItem extends Item {
 	public UniversalKeyChangerItem(Item.Properties properties) {
@@ -49,11 +51,11 @@ public class UniversalKeyChangerItem extends Item {
 		else if (be instanceof IPasscodeProtected) {
 			if (((IOwnable) be).isOwnedBy(player) || player.isCreative()) {
 				if (!level.isClientSide)
-					PacketDistributor.sendToPlayer((ServerPlayer) player, new OpenScreen(DataType.CHANGE_PASSCODE, pos));
+					SecurityCraft.CHANNEL.send(PacketDistributor.PLAYER.with(() -> (ServerPlayer) player), new OpenScreen(DataType.CHANGE_PASSCODE, pos));
 
 				return InteractionResult.SUCCESS;
 			}
-			else if (!(be.getBlockState().getBlock() instanceof DisguisableBlock db) || (((BlockItem) db.getDisguisedStack(level, pos).getItem()).getBlock() instanceof DisguisableBlock)) {
+			else if (!(be.getBlockState().getBlock() instanceof IDisguisable db) || (((BlockItem) db.getDisguisedStack(level, pos).getItem()).getBlock() instanceof IDisguisable)) {
 				PlayerUtils.sendMessageToPlayer(player, Utils.localize(SCContent.UNIVERSAL_KEY_CHANGER.get().getDescriptionId()), Utils.localize("messages.securitycraft:notOwned", PlayerUtils.getOwnerComponent(((IOwnable) be).getOwner())), ChatFormatting.RED);
 				return InteractionResult.FAIL;
 			}
@@ -74,13 +76,13 @@ public class UniversalKeyChangerItem extends Item {
 			ItemStack briefcase = player.getOffhandItem();
 
 			if (BriefcaseItem.isOwnedBy(briefcase, player) || player.isCreative()) {
-				PasscodeData passcodeData = briefcase.get(SCContent.PASSCODE_DATA);
+				CompoundTag tag = briefcase.getTag();
 
-				if (passcodeData != null) {
-					if (!level.isClientSide)
-						SaltData.removeSalt(passcodeData.saltKey());
+				if (tag != null && tag.contains("passcode")) {
+					if (tag.contains("saltKey") && !level.isClientSide)
+						SaltData.removeSalt(tag.getUUID("saltKey"));
 
-					briefcase.remove(SCContent.PASSCODE_DATA);
+					PasscodeUtils.filterPasscodeAndSaltFromTag(tag);
 					PlayerUtils.sendMessageToPlayer(player, Utils.localize(SCContent.UNIVERSAL_KEY_CHANGER.get().getDescriptionId()), Utils.localize("messages.securitycraft:universalKeyChanger.briefcase.passcodeReset"), ChatFormatting.GREEN);
 					return InteractionResultHolder.success(keyChanger);
 				}

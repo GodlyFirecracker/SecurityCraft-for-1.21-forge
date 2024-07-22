@@ -1,37 +1,41 @@
 package net.geforcemods.securitycraft.network.server;
 
+import java.util.function.Supplier;
+
 import net.geforcemods.securitycraft.SCContent;
-import net.geforcemods.securitycraft.SecurityCraft;
-import net.geforcemods.securitycraft.components.GlobalPositions;
 import net.geforcemods.securitycraft.util.PlayerUtils;
-import net.minecraft.core.GlobalPos;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.network.NetworkEvent;
 
-public record RemoveMineFromMRAT(GlobalPos globalPos) implements CustomPacketPayload {
-	public static final Type<RemoveMineFromMRAT> TYPE = new Type<>(SecurityCraft.resLoc("remove_mine_from_mrat"));
-	//@formatter:off
-	public static final StreamCodec<RegistryFriendlyByteBuf, RemoveMineFromMRAT> STREAM_CODEC = StreamCodec.composite(
-			GlobalPos.STREAM_CODEC, RemoveMineFromMRAT::globalPos,
-			RemoveMineFromMRAT::new);
-	//@formatter:on
+public class RemoveMineFromMRAT {
+	private int mineIndex;
 
-	@Override
-	public Type<? extends CustomPacketPayload> type() {
-		return TYPE;
+	public RemoveMineFromMRAT() {}
+
+	public RemoveMineFromMRAT(int mineIndex) {
+		this.mineIndex = mineIndex;
 	}
 
-	public void handle(IPayloadContext ctx) {
-		ItemStack stack = PlayerUtils.getItemStackFromAnyHand(ctx.player(), SCContent.MINE_REMOTE_ACCESS_TOOL.get());
+	public RemoveMineFromMRAT(FriendlyByteBuf buf) {
+		mineIndex = buf.readVarInt();
+	}
+
+	public void encode(FriendlyByteBuf buf) {
+		buf.writeVarInt(mineIndex);
+	}
+
+	public void handle(Supplier<NetworkEvent.Context> ctx) {
+		Player player = ctx.get().getSender();
+		ItemStack stack = PlayerUtils.getItemStackFromAnyHand(player, SCContent.MINE_REMOTE_ACCESS_TOOL.get());
 
 		if (!stack.isEmpty()) {
-			GlobalPositions mines = stack.get(SCContent.BOUND_MINES);
+			CompoundTag tag = stack.getOrCreateTag();
 
-			if (mines != null)
-				mines.remove(SCContent.BOUND_MINES, stack, globalPos);
+			if (tag.contains("mine" + mineIndex))
+				tag.remove("mine" + mineIndex);
 		}
 	}
 }

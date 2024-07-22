@@ -1,6 +1,7 @@
 package net.geforcemods.securitycraft.network.server;
 
-import net.geforcemods.securitycraft.SecurityCraft;
+import java.util.function.Supplier;
+
 import net.geforcemods.securitycraft.api.ICustomizable;
 import net.geforcemods.securitycraft.api.IOwnable;
 import net.geforcemods.securitycraft.api.Option;
@@ -8,72 +9,58 @@ import net.geforcemods.securitycraft.api.Option.DoubleOption;
 import net.geforcemods.securitycraft.api.Option.EntityDataWrappedOption;
 import net.geforcemods.securitycraft.api.Option.IntOption;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.network.NetworkEvent;
 
-public class UpdateSliderValue implements CustomPacketPayload {
-	public static final Type<UpdateSliderValue> TYPE = new Type<>(SecurityCraft.resLoc("update_slider_value"));
-	public static final StreamCodec<RegistryFriendlyByteBuf, UpdateSliderValue> STREAM_CODEC = new StreamCodec<>() {
-		@Override
-		public UpdateSliderValue decode(RegistryFriendlyByteBuf buf) {
-			if (buf.readBoolean())
-				return new UpdateSliderValue(buf.readBlockPos(), buf.readUtf(), buf.readDouble());
-			else
-				return new UpdateSliderValue(buf.readVarInt(), buf.readUtf(), buf.readDouble());
-		}
-
-		@Override
-		public void encode(RegistryFriendlyByteBuf buf, UpdateSliderValue packet) {
-			boolean hasPos = packet.pos != null;
-
-			buf.writeBoolean(hasPos);
-
-			if (hasPos)
-				buf.writeBlockPos(packet.pos);
-			else
-				buf.writeVarInt(packet.entityId);
-
-			buf.writeUtf(packet.optionName);
-			buf.writeDouble(packet.value);
-		}
-	};
+public class UpdateSliderValue {
 	private BlockPos pos;
 	private String optionName;
 	private double value;
 	private int entityId;
 
-	public UpdateSliderValue(BlockPos pos, Option<?> option, double v) {
-		this(pos, option.getName(), v);
-	}
+	public UpdateSliderValue() {}
 
-	public UpdateSliderValue(BlockPos pos, String option, double v) {
+	public UpdateSliderValue(BlockPos pos, Option<?> option, double v) {
 		this.pos = pos;
-		optionName = option;
+		optionName = option.getName();
 		value = v;
 	}
 
 	public UpdateSliderValue(int entityId, Option<?> option, double v) {
-		this(entityId, option.getName(), v);
-	}
-
-	public UpdateSliderValue(int entityId, String option, double v) {
 		this.entityId = entityId;
-		optionName = option;
+		optionName = option.getName();
 		value = v;
 	}
 
-	@Override
-	public Type<? extends CustomPacketPayload> type() {
-		return TYPE;
+	public UpdateSliderValue(FriendlyByteBuf buf) {
+		if (buf.readBoolean())
+			pos = buf.readBlockPos();
+		else
+			entityId = buf.readVarInt();
+
+		optionName = buf.readUtf();
+		value = buf.readDouble();
 	}
 
-	public void handle(IPayloadContext ctx) {
-		Player player = ctx.player();
+	public void encode(FriendlyByteBuf buf) {
+		boolean hasPos = pos != null;
+
+		buf.writeBoolean(hasPos);
+
+		if (hasPos)
+			buf.writeBlockPos(pos);
+		else
+			buf.writeVarInt(entityId);
+
+		buf.writeUtf(optionName);
+		buf.writeDouble(value);
+	}
+
+	public void handle(Supplier<NetworkEvent.Context> ctx) {
+		Player player = ctx.get().getSender();
 		Level level = player.level();
 		ICustomizable customizable = getCustomizable(level);
 

@@ -12,9 +12,9 @@ import net.geforcemods.securitycraft.misc.ModuleType;
 import net.geforcemods.securitycraft.util.BlockUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.Connection;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.world.item.ItemStack;
@@ -22,10 +22,14 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.entity.DispenserBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.neoforge.items.IItemHandler;
-import net.neoforged.neoforge.items.wrapper.InvWrapper;
+import net.minecraftforge.client.model.data.ModelData;
+import net.minecraftforge.common.capabilities.Capability;
+import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.common.util.LazyOptional;
+import net.minecraftforge.items.IItemHandler;
 
 public class ReinforcedDispenserBlockEntity extends DispenserBlockEntity implements IOwnable, IModuleInventory {
+	private LazyOptional<IItemHandler> insertOnlyHandler;
 	private NonNullList<ItemStack> modules = NonNullList.withSize(getMaxNumberOfModules(), ItemStack.EMPTY);
 	private Owner owner = new Owner();
 	private Map<ModuleType, Boolean> moduleStates = new EnumMap<>(ModuleType.class);
@@ -44,33 +48,67 @@ public class ReinforcedDispenserBlockEntity extends DispenserBlockEntity impleme
 	}
 
 	@Override
-	public void loadAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.loadAdditional(tag, lookupProvider);
+	public void load(CompoundTag tag) {
+		super.load(tag);
 
 		owner.load(tag);
-		modules = readModuleInventory(tag, lookupProvider);
+		modules = readModuleInventory(tag);
 		moduleStates = readModuleStates(tag);
 	}
 
 	@Override
-	public void saveAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.saveAdditional(tag, lookupProvider);
+	public void saveAdditional(CompoundTag tag) {
+		super.saveAdditional(tag);
 
 		if (owner != null)
 			owner.save(tag, needsValidation());
 
-		writeModuleInventory(tag, lookupProvider);
+		writeModuleInventory(tag);
 		writeModuleStates(tag);
 	}
 
 	@Override
-	public CompoundTag getUpdateTag(HolderLookup.Provider lookupProvider) {
-		return saveCustomOnly(lookupProvider);
+	public CompoundTag getUpdateTag() {
+		return saveWithoutMetadata();
 	}
 
 	@Override
 	public ClientboundBlockEntityDataPacket getUpdatePacket() {
 		return ClientboundBlockEntityDataPacket.create(this);
+	}
+
+	@Override
+	public void onDataPacket(Connection net, ClientboundBlockEntityDataPacket packet) {
+		super.onDataPacket(net, packet);
+		handleUpdateTag(packet.getTag());
+	}
+
+	@Override
+	public void handleUpdateTag(CompoundTag tag) {
+		load(tag);
+		DisguisableBlockEntity.onHandleUpdateTag(this);
+	}
+
+	@Override
+	public void onModuleInserted(ItemStack stack, ModuleType module, boolean toggled) {
+		IModuleInventory.super.onModuleInserted(stack, module, toggled);
+
+		if (module == ModuleType.DISGUISE)
+			DisguisableBlockEntity.onDisguiseModuleInserted(this, stack, toggled);
+	}
+
+	@Override
+	public void onModuleRemoved(ItemStack stack, ModuleType module, boolean toggled) {
+		IModuleInventory.super.onModuleRemoved(stack, module, toggled);
+
+		if (module == ModuleType.DISGUISE)
+			DisguisableBlockEntity.onDisguiseModuleRemoved(this, stack, toggled);
+	}
+
+	@Override
+	public void setRemoved() {
+		super.setRemoved();
+		DisguisableBlockEntity.onSetRemoved(this);
 	}
 
 	@Override
@@ -99,14 +137,39 @@ public class ReinforcedDispenserBlockEntity extends DispenserBlockEntity impleme
 		return getStackInSlot(slot);
 	}
 
-	public static IItemHandler getCapability(ReinforcedDispenserBlockEntity be, Direction side) {
-		return BlockUtils.isAllowedToExtractFromProtectedObject(side, be) ? new InvWrapper(be) : new InsertOnlyInvWrapper(be);
+	@Override
+	public <T> LazyOptional<T> getCapability(Capability<T> cap, Direction side) {
+		if (cap == ForgeCapabilities.ITEM_HANDLER)
+			return BlockUtils.isAllowedToExtractFromProtectedObject(side, this) ? super.getCapability(cap, side) : getInsertOnlyHandler().cast();
+		else
+			return super.getCapability(cap, side);
+	}
+
+	@Override
+	public void invalidateCaps() {
+		if (insertOnlyHandler != null)
+			insertOnlyHandler.invalidate();
+
+		super.invalidateCaps();
+	}
+
+	@Override
+	public void reviveCaps() {
+		insertOnlyHandler = null; //recreated in getInsertOnlyHandler
+		super.reviveCaps();
+	}
+
+	private LazyOptional<IItemHandler> getInsertOnlyHandler() {
+		if (insertOnlyHandler == null)
+			insertOnlyHandler = LazyOptional.of(() -> new InsertOnlyInvWrapper(this));
+
+		return insertOnlyHandler;
 	}
 
 	@Override
 	public ModuleType[] acceptedModules() {
 		return new ModuleType[] {
-				ModuleType.ALLOWLIST
+				ModuleType.ALLOWLIST, ModuleType.DISGUISE
 		};
 	}
 
@@ -133,5 +196,10 @@ public class ReinforcedDispenserBlockEntity extends DispenserBlockEntity impleme
 	@Override
 	public BlockPos myPos() {
 		return worldPosition;
+	}
+
+	@Override
+	public ModelData getModelData() {
+		return DisguisableBlockEntity.getModelData(this);
 	}
 }

@@ -8,6 +8,7 @@ import net.geforcemods.securitycraft.SCContent;
 import net.geforcemods.securitycraft.SecurityCraft;
 import net.geforcemods.securitycraft.util.Utils;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 
 public abstract class BaseCategory implements IRecipeCategory<ReinforcerRecipe> {
@@ -16,7 +17,7 @@ public abstract class BaseCategory implements IRecipeCategory<ReinforcerRecipe> 
 	private final IDrawable icon;
 
 	protected BaseCategory(IGuiHelper helper) {
-		background = helper.createDrawable(SecurityCraft.resLoc("textures/gui/container/universal_block_reinforcer.png"), 25, 19, 126, 43);
+		background = helper.createDrawable(new ResourceLocation(SecurityCraft.MODID, "textures/gui/container/universal_block_reinforcer.png"), 25, 19, 126, 43);
 		icon = helper.createDrawableIngredient(VanillaTypes.ITEM_STACK, new ItemStack(SCContent.UNIVERSAL_BLOCK_REINFORCER_LVL_3.get()));
 	}
 

@@ -3,6 +3,7 @@ package net.geforcemods.securitycraft.blocks;
 import net.geforcemods.securitycraft.blockentities.ElectrifiedFenceAndGateBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
@@ -18,7 +19,7 @@ public class ElectrifiedIronFenceGateBlock extends OwnableFenceGateBlock {
 	}
 
 	@Override
-	public InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
+	public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
 		return InteractionResult.FAIL;
 	}
 
@@ -27,7 +28,7 @@ public class ElectrifiedIronFenceGateBlock extends OwnableFenceGateBlock {
 		if (state.getValue(OPEN))
 			return;
 
-		ElectrifiedIronFenceBlock.hurtOrConvertEntity(this::getShape, state, level, pos, entity);
+		ElectrifiedIronFenceBlock.hurtOrConvertEntity(this, state, level, pos, entity);
 	}
 
 	@Override

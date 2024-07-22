@@ -2,14 +2,13 @@ package net.geforcemods.securitycraft.blocks.reinforced;
 
 import net.geforcemods.securitycraft.blockentities.ReinforcedDropperBlockEntity;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.BlockSourceImpl;
 import net.minecraft.core.Direction;
-import net.minecraft.core.dispenser.BlockSource;
 import net.minecraft.core.dispenser.DefaultDispenseItemBehavior;
 import net.minecraft.core.dispenser.DispenseItemBehavior;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Container;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LevelEvent;
@@ -17,7 +16,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.HopperBlockEntity;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.neoforge.items.VanillaInventoryCodeHooks;
+import net.minecraftforge.items.VanillaInventoryCodeHooks;
 
 public class ReinforcedDropperBlock extends ReinforcedDispenserBlock {
 	private static final DispenseItemBehavior DISPENSE_BEHAVIOUR = new DefaultDispenseItemBehavior();
@@ -27,7 +26,7 @@ public class ReinforcedDropperBlock extends ReinforcedDispenserBlock {
 	}
 
 	@Override
-	public DispenseItemBehavior getDispenseMethod(Level level, ItemStack stack) {
+	public DispenseItemBehavior getDispenseMethod(ItemStack stack) {
 		return DISPENSE_BEHAVIOUR;
 	}
 
@@ -37,9 +36,9 @@ public class ReinforcedDropperBlock extends ReinforcedDispenserBlock {
 	}
 
 	@Override
-	protected void dispenseFrom(ServerLevel level, BlockState state, BlockPos pos) {
+	protected void dispenseFrom(ServerLevel level, BlockPos pos) {
 		if (level.getBlockEntity(pos) instanceof ReinforcedDropperBlockEntity be) {
-			BlockSource source = new BlockSource(level, pos, state, be);
+			BlockSourceImpl source = new BlockSourceImpl(level, pos);
 			int randomSlot = be.getRandomSlot(level.random);
 
 			if (randomSlot < 0)

@@ -14,7 +14,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.ItemInteractionResult;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
@@ -76,12 +76,12 @@ public class IMSBlock extends OwnableBlock implements SimpleWaterloggedBlock {
 	}
 
 	@Override
-	public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
+	public void playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
 		//prevents dropping twice the amount of modules when breaking the block in creative mode
 		if (player.isCreative() && level.getBlockEntity(pos) instanceof IModuleInventory inv)
 			inv.getInventory().clear();
 
-		return super.playerWillDestroy(level, pos, state, player);
+		super.playerWillDestroy(level, pos, state, player);
 	}
 
 	@Override
@@ -93,25 +93,26 @@ public class IMSBlock extends OwnableBlock implements SimpleWaterloggedBlock {
 	}
 
 	@Override
-	public ItemInteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
+	public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
 		if (level.getBlockEntity(pos) instanceof IMSBlockEntity be) {
 			if (be.isDisabled())
 				player.displayClientMessage(Utils.localize("gui.securitycraft:scManual.disabled"), true);
 			else if (be.isOwnedBy(player)) {
+				ItemStack held = player.getItemInHand(hand);
 				int mines = state.getValue(MINES);
 
-				if (stack.getItem() == SCContent.BOUNCING_BETTY.get().asItem() && mines < 4) {
+				if (held.getItem() == SCContent.BOUNCING_BETTY.get().asItem() && mines < 4) {
 					if (!player.isCreative())
-						stack.shrink(1);
+						held.shrink(1);
 
 					level.setBlockAndUpdate(pos, state.setValue(MINES, mines + 1));
 					be.setBombsRemaining(mines + 1);
-					return ItemInteractionResult.sidedSuccess(level.isClientSide);
+					return InteractionResult.sidedSuccess(level.isClientSide);
 				}
 			}
 		}
 
-		return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
+		return InteractionResult.PASS;
 	}
 
 	@Override

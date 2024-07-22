@@ -21,10 +21,9 @@ import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 public class ProjectorScreen extends AbstractContainerScreen<ProjectorMenu> implements IHasExtraAreas {
-	private static final ResourceLocation TEXTURE = SecurityCraft.resLoc("textures/gui/container/projector.png");
+	private static final ResourceLocation TEXTURE = new ResourceLocation("securitycraft:textures/gui/container/projector.png");
 	private static final Component SLOT_TOOLTIP = Utils.localize("gui.securitycraft:projector.block");
 	private ProjectorBlockEntity be;
 	private TextHoverChecker slotHoverChecker;
@@ -66,7 +65,7 @@ public class ProjectorScreen extends AbstractContainerScreen<ProjectorMenu> impl
 		projectionOffsetSlider.setFGColor(14737632);
 		projectionOffsetSlider.setTooltip(Tooltip.create(Utils.localize("gui.securitycraft:projector.offset.description")));
 		//@formatter:off
-		horizontalToggleButton = addRenderableWidget(new TogglePictureButton(left + sliderWidth - 20, topPos + 36, 20, 20, 2, 16, 16, 2, button -> {
+		horizontalToggleButton = addRenderableWidget(new TogglePictureButton(left + sliderWidth - 20, topPos + 36, 20, 20, TEXTURE, new int[]{176, 192}, new int[]{0, 0}, 2, 2, button -> {
 			//@formatter:on
 			boolean horizontal = !be.isHorizontal();
 
@@ -76,14 +75,14 @@ public class ProjectorScreen extends AbstractContainerScreen<ProjectorMenu> impl
 			projectionRangeSlider.setMaxValue(projectionRangeSlider.getMaxValue() - (horizontal ? 16 : -16));
 			projectionRangeSlider.setValue(projectionRangeSlider.getValue() - (horizontal ? 16 : -16));
 			applySliderValue(projectionRangeSlider);
-			PacketDistributor.sendToServer(new SyncProjector(be.getBlockPos(), be.isHorizontal() ? 1 : 0, DataType.HORIZONTAL));
-		}, SecurityCraft.resLoc("projector/vertical"), SecurityCraft.resLoc("projector/horizontal")));
+			SecurityCraft.CHANNEL.sendToServer(new SyncProjector(be.getBlockPos(), be.isHorizontal() ? 1 : 0, DataType.HORIZONTAL));
+		}));
 		horizontalToggleButton.setCurrentIndex(be.isHorizontal() ? 1 : 0);
 		updateHorizontalToggleButtonTooltip();
 
 		overrideCheckbox = addRenderableWidget(new CallbackCheckbox(left + sliderWidth - 41, topPos + 36, 20, 20, Component.empty(), be.isOverridingBlocks(), newValue -> {
 			be.setOverridingBlocks(newValue);
-			PacketDistributor.sendToServer(new SyncProjector(be.getBlockPos(), be.isOverridingBlocks() ? 1 : 0, DataType.OVERRIDING_BLOCKS));
+			SecurityCraft.CHANNEL.sendToServer(new SyncProjector(be.getBlockPos(), be.isOverridingBlocks() ? 1 : 0, DataType.OVERRIDING_BLOCKS));
 			updateOverrideCheckboxTooltip();
 		}, 0));
 		updateOverrideCheckboxTooltip();
@@ -119,6 +118,7 @@ public class ProjectorScreen extends AbstractContainerScreen<ProjectorMenu> impl
 
 	@Override
 	protected void renderBg(GuiGraphics guiGraphics, float partialTicks, int mouseX, int mouseY) {
+		renderBackground(guiGraphics);
 		guiGraphics.blit(TEXTURE, leftPos, topPos, 0, 0, imageWidth, imageHeight);
 	}
 
@@ -144,7 +144,7 @@ public class ProjectorScreen extends AbstractContainerScreen<ProjectorMenu> impl
 
 		if (stateSelector.getState() != null) {
 			be.setProjectedState(stateSelector.getState());
-			PacketDistributor.sendToServer(new SyncProjector(be.getBlockPos(), stateSelector.getState()));
+			SecurityCraft.CHANNEL.sendToServer(new SyncProjector(be.getBlockPos(), stateSelector.getState()));
 		}
 	}
 
@@ -177,6 +177,6 @@ public class ProjectorScreen extends AbstractContainerScreen<ProjectorMenu> impl
 			dataType = DataType.OFFSET;
 		}
 
-		PacketDistributor.sendToServer(new SyncProjector(be.getBlockPos(), data, dataType));
+		SecurityCraft.CHANNEL.sendToServer(new SyncProjector(be.getBlockPos(), data, dataType));
 	}
 }

@@ -1,7 +1,6 @@
 package net.geforcemods.securitycraft.blocks;
 
-import java.util.function.BiConsumer;
-
+import net.geforcemods.securitycraft.api.INameSetter;
 import net.geforcemods.securitycraft.api.OwnableBlockEntity;
 import net.geforcemods.securitycraft.misc.OwnershipEvent;
 import net.geforcemods.securitycraft.util.BlockUtils;
@@ -12,7 +11,6 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
-import net.minecraft.world.level.Explosion;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
@@ -22,24 +20,31 @@ import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.WoodType;
 import net.minecraft.world.level.gameevent.GameEvent;
-import net.neoforged.neoforge.common.NeoForge;
+import net.minecraftforge.common.MinecraftForge;
 
 public class OwnableFenceGateBlock extends FenceGateBlock implements EntityBlock {
+	protected final SoundEvent openSound;
+	protected final SoundEvent closeSound;
+
 	public OwnableFenceGateBlock(BlockBehaviour.Properties properties, WoodType woodType) {
-		super(woodType, properties);
+		super(properties, woodType);
+		this.openSound = woodType.fenceGateOpen();
+		this.closeSound = woodType.fenceGateClose();
 	}
 
 	public OwnableFenceGateBlock(BlockBehaviour.Properties properties, SoundEvent openSound, SoundEvent closeSound) {
 		super(properties, openSound, closeSound);
+		this.openSound = openSound;
+		this.closeSound = closeSound;
 	}
-
-	@Override
-	public void onExplosionHit(BlockState state, Level level, BlockPos pos, Explosion explosion, BiConsumer<ItemStack, BlockPos> dropConsumer) {} //disallow wind charges to open the gate
 
 	@Override
 	public void setPlacedBy(Level level, BlockPos pos, BlockState state, LivingEntity placer, ItemStack stack) {
 		if (placer instanceof Player player)
-			NeoForge.EVENT_BUS.post(new OwnershipEvent(level, pos, player));
+			MinecraftForge.EVENT_BUS.post(new OwnershipEvent(level, pos, player));
+
+		if (stack.hasCustomHoverName() && level.getBlockEntity(pos) instanceof INameSetter nameable)
+			nameable.setCustomName(stack.getHoverName());
 	}
 
 	@Override

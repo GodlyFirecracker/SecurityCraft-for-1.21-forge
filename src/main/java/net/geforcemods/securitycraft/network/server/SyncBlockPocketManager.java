@@ -1,36 +1,50 @@
 package net.geforcemods.securitycraft.network.server;
 
-import net.geforcemods.securitycraft.SecurityCraft;
+import java.util.function.Supplier;
+
 import net.geforcemods.securitycraft.blockentities.BlockPocketManagerBlockEntity;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.network.NetworkEvent;
 
-public record SyncBlockPocketManager(BlockPos pos, int size, boolean showOutline, int autoBuildOffset, int color) implements CustomPacketPayload {
+public class SyncBlockPocketManager {
+	private BlockPos pos;
+	private int size;
+	private boolean showOutline;
+	private int autoBuildOffset;
+	private int color;
 
-	public static final Type<SyncBlockPocketManager> TYPE = new Type<>(SecurityCraft.resLoc("sync_block_pocket_manager"));
-	//@formatter:off
-	public static final StreamCodec<RegistryFriendlyByteBuf, SyncBlockPocketManager> STREAM_CODEC = StreamCodec.composite(
-			BlockPos.STREAM_CODEC, SyncBlockPocketManager::pos,
-			ByteBufCodecs.VAR_INT, SyncBlockPocketManager::size,
-			ByteBufCodecs.BOOL, SyncBlockPocketManager::showOutline,
-			ByteBufCodecs.VAR_INT, SyncBlockPocketManager::autoBuildOffset,
-			ByteBufCodecs.VAR_INT, SyncBlockPocketManager::color,
-			SyncBlockPocketManager::new);
-	//@formatter:on
-	@Override
-	public Type<? extends CustomPacketPayload> type() {
-		return TYPE;
+	public SyncBlockPocketManager() {}
+
+	public SyncBlockPocketManager(BlockPos pos, int size, boolean showOutline, int autoBuildOffset, int color) {
+		this.pos = pos;
+		this.size = size;
+		this.showOutline = showOutline;
+		this.autoBuildOffset = autoBuildOffset;
+		this.color = color;
 	}
 
-	public void handle(IPayloadContext ctx) {
-		Player player = ctx.player();
+	public SyncBlockPocketManager(FriendlyByteBuf buf) {
+		pos = buf.readBlockPos();
+		size = buf.readVarInt();
+		showOutline = buf.readBoolean();
+		autoBuildOffset = buf.readVarInt();
+		color = buf.readInt();
+	}
+
+	public void encode(FriendlyByteBuf buf) {
+		buf.writeBlockPos(pos);
+		buf.writeVarInt(size);
+		buf.writeBoolean(showOutline);
+		buf.writeVarInt(autoBuildOffset);
+		buf.writeInt(color);
+	}
+
+	public void handle(Supplier<NetworkEvent.Context> ctx) {
+		Player player = ctx.get().getSender();
 		Level level = player.level();
 
 		if (level.isLoaded(pos) && level.getBlockEntity(pos) instanceof BlockPocketManagerBlockEntity bpm && bpm.isOwnedBy(player)) {

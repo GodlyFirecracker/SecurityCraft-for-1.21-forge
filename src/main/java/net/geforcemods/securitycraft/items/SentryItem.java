@@ -7,9 +7,7 @@ import net.geforcemods.securitycraft.util.PlayerUtils;
 import net.geforcemods.securitycraft.util.Utils;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -58,8 +56,8 @@ public class SentryItem extends Item {
 		entity.setPos(pos.getX() + 0.5F, pos.getY(), pos.getZ() + 0.5F);
 		entity.setUpSentry(player);
 
-		if (level instanceof ServerLevel serverLevel)
-			EntityType.<Sentry>createDefaultStackConfig(serverLevel, stack, player).accept(entity);
+		if (stack.hasCustomHoverName())
+			entity.setCustomName(stack.getHoverName());
 
 		level.addFreshEntity(entity);
 		entity.gameEvent(GameEvent.ENTITY_PLACE, player);

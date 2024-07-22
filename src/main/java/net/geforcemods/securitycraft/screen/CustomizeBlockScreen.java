@@ -35,32 +35,23 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ContainerListener;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 public class CustomizeBlockScreen extends AbstractContainerScreen<CustomizeBlockMenu> implements IHasExtraAreas, ContainerListener {
-	//@formatter:off
-	private static final ResourceLocation[] TEXTURES = {
-			SecurityCraft.resLoc("textures/gui/container/customize0.png"),
-			SecurityCraft.resLoc("textures/gui/container/customize1.png"),
-			SecurityCraft.resLoc("textures/gui/container/customize2.png"),
-			SecurityCraft.resLoc("textures/gui/container/customize3.png"),
-			SecurityCraft.resLoc("textures/gui/container/customize4.png"),
-			SecurityCraft.resLoc("textures/gui/container/customize5.png")
-	};
-	//@formatter:on
-	private static final ResourceLocation CONFIRM_SPRITE = SecurityCraft.mcResLoc("container/beacon/confirm");
-	private static final ResourceLocation CANCEL_SPRITE = SecurityCraft.mcResLoc("container/beacon/cancel");
+	private static final ResourceLocation BEACON_GUI = new ResourceLocation("textures/gui/container/beacon.png");
 	private final List<Rect2i> extraAreas = new ArrayList<>();
-	private IModuleInventory moduleInv;
-	private PictureButton[] descriptionButtons = new PictureButton[5];
-	private AbstractWidget[] optionButtons;
 	private final int maxNumberOfModules;
+	private final ResourceLocation texture;
+	private final PictureButton[] descriptionButtons;
+	private IModuleInventory moduleInv;
+	private AbstractWidget[] optionButtons;
 	private EnumMap<ModuleType, Boolean> indicators = new EnumMap<>(ModuleType.class);
 
 	public CustomizeBlockScreen(CustomizeBlockMenu menu, Inventory inv, Component title) {
 		super(menu, inv, title);
 		moduleInv = menu.moduleInv;
 		maxNumberOfModules = moduleInv.getMaxNumberOfModules();
+		texture = new ResourceLocation(SecurityCraft.MODID, "textures/gui/container/customize" + maxNumberOfModules + ".png");
+		descriptionButtons = new PictureButton[maxNumberOfModules];
 		menu.addSlotListener(this);
 
 		for (ModuleType type : ModuleType.values()) {
@@ -103,9 +94,9 @@ public class CustomizeBlockScreen extends AbstractContainerScreen<CustomizeBlock
 								optionButtons[sliderIndex].setTooltip(Tooltip.create(getOptionDescription(sliderIndex)));
 
 								if (menu.entityId == -1)
-									PacketDistributor.sendToServer(new UpdateSliderValue(moduleInv.myPos(), option, doubleOption.get()));
+									SecurityCraft.CHANNEL.sendToServer(new UpdateSliderValue(moduleInv.myPos(), option, doubleOption.get()));
 								else
-									PacketDistributor.sendToServer(new UpdateSliderValue(menu.entityId, option, doubleOption.get()));
+									SecurityCraft.CHANNEL.sendToServer(new UpdateSliderValue(menu.entityId, option, doubleOption.get()));
 							});
 						}
 						else if (option instanceof IntOption intOption) {
@@ -116,9 +107,9 @@ public class CustomizeBlockScreen extends AbstractContainerScreen<CustomizeBlock
 								optionButtons[sliderIndex].setTooltip(Tooltip.create(getOptionDescription(sliderIndex)));
 
 								if (menu.entityId == -1)
-									PacketDistributor.sendToServer(new UpdateSliderValue(moduleInv.myPos(), option, intOption.get()));
+									SecurityCraft.CHANNEL.sendToServer(new UpdateSliderValue(moduleInv.myPos(), option, intOption.get()));
 								else
-									PacketDistributor.sendToServer(new UpdateSliderValue(menu.entityId, option, intOption.get()));
+									SecurityCraft.CHANNEL.sendToServer(new UpdateSliderValue(menu.entityId, option, intOption.get()));
 							});
 						}
 
@@ -151,7 +142,7 @@ public class CustomizeBlockScreen extends AbstractContainerScreen<CustomizeBlock
 				ModuleType type = ((ModuleItem) slot.getItem().getItem()).getModuleType();
 
 				if (indicators.containsKey(type))
-					guiGraphics.blitSprite(indicators.get(type) ? CONFIRM_SPRITE : CANCEL_SPRITE, leftPos + slot.x, topPos + slot.y + 16, 18, 18);
+					guiGraphics.blit(BEACON_GUI, leftPos + slot.x - 2, topPos + slot.y + 16, 20, 20, indicators.get(type) ? 88 : 110, 219, 21, 22, 256, 256);
 			}
 		}
 
@@ -166,7 +157,8 @@ public class CustomizeBlockScreen extends AbstractContainerScreen<CustomizeBlock
 
 	@Override
 	protected void renderBg(GuiGraphics guiGraphics, float partialTicks, int mouseX, int mouseY) {
-		guiGraphics.blit(TEXTURES[maxNumberOfModules], leftPos, topPos, 0, 0, imageWidth, imageHeight);
+		renderBackground(guiGraphics);
+		guiGraphics.blit(texture, leftPos, topPos, 0, 0, imageWidth, imageHeight);
 	}
 
 	@Override
@@ -207,9 +199,9 @@ public class CustomizeBlockScreen extends AbstractContainerScreen<CustomizeBlock
 		}
 
 		if (menu.entityId == -1)
-			PacketDistributor.sendToServer(new ToggleModule(moduleInv.myPos(), moduleType));
+			SecurityCraft.CHANNEL.sendToServer(new ToggleModule(moduleInv.myPos(), moduleType));
 		else
-			PacketDistributor.sendToServer(new ToggleModule(menu.entityId, moduleType));
+			SecurityCraft.CHANNEL.sendToServer(new ToggleModule(menu.entityId, moduleType));
 	}
 
 	private void optionButtonClicked(Button button) {
@@ -225,9 +217,9 @@ public class CustomizeBlockScreen extends AbstractContainerScreen<CustomizeBlock
 			optionButtons[i].setTooltip(Tooltip.create(getOptionDescription(i)));
 
 			if (menu.entityId == -1)
-				PacketDistributor.sendToServer(new ToggleOption(moduleInv.myPos(), i));
+				SecurityCraft.CHANNEL.sendToServer(new ToggleOption(moduleInv.myPos(), i));
 			else
-				PacketDistributor.sendToServer(new ToggleOption(menu.entityId, i));
+				SecurityCraft.CHANNEL.sendToServer(new ToggleOption(menu.entityId, i));
 
 			return;
 		}

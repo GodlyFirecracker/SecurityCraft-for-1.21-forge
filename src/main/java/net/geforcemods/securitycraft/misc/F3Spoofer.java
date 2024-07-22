@@ -1,7 +1,7 @@
 package net.geforcemods.securitycraft.misc;
 
 import net.geforcemods.securitycraft.SCContent;
-import net.geforcemods.securitycraft.blocks.DisguisableBlock;
+import net.geforcemods.securitycraft.api.IDisguisable;
 import net.geforcemods.securitycraft.blocks.mines.BaseFullMineBlock;
 import net.geforcemods.securitycraft.blocks.mines.FurnaceMineBlock;
 import net.minecraft.client.Minecraft;
@@ -14,7 +14,7 @@ import net.minecraft.world.level.material.FlowingFluid;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.material.Fluids;
-import net.neoforged.fml.loading.FMLEnvironment;
+import net.minecraftforge.fml.loading.FMLEnvironment;
 
 public class F3Spoofer {
 	private F3Spoofer() {}
@@ -23,13 +23,12 @@ public class F3Spoofer {
 		Block originalBlock = originalState.getBlock();
 
 		if (FMLEnvironment.production) {
-			switch (originalBlock) {
-				case DisguisableBlock disguisable -> DisguisableBlock.getDisguisedStateOrDefault(originalState, Minecraft.getInstance().level, pos);
-				case FurnaceMineBlock mine -> Blocks.FURNACE.defaultBlockState().setValue(BlockStateProperties.HORIZONTAL_FACING, originalState.getValue(BlockStateProperties.HORIZONTAL_FACING));
-				case BaseFullMineBlock mine -> mine.getBlockDisguisedAs().defaultBlockState();
-				default -> {
-				}
-			}
+			if (originalBlock instanceof IDisguisable)
+				return IDisguisable.getDisguisedStateOrDefault(originalState, Minecraft.getInstance().level, pos);
+			else if (originalBlock instanceof FurnaceMineBlock)
+				return Blocks.FURNACE.defaultBlockState().setValue(BlockStateProperties.HORIZONTAL_FACING, originalState.getValue(BlockStateProperties.HORIZONTAL_FACING));
+			else if (originalBlock instanceof BaseFullMineBlock mine)
+				return mine.getBlockDisguisedAs().defaultBlockState();
 		}
 
 		return originalState;

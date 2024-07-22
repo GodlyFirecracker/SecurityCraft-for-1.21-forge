@@ -1,12 +1,17 @@
 package net.geforcemods.securitycraft.blockentities;
 
-import java.util.Optional;
+import java.util.concurrent.Executor;
+import java.util.function.Consumer;
 
-import com.mojang.authlib.properties.PropertyMap;
+import javax.annotation.Nullable;
+
+import com.google.common.collect.Iterables;
+import com.mojang.authlib.GameProfile;
+import com.mojang.authlib.minecraft.MinecraftSessionService;
+import com.mojang.authlib.properties.Property;
 
 import net.geforcemods.securitycraft.ConfigHandler;
 import net.geforcemods.securitycraft.SCContent;
-import net.geforcemods.securitycraft.SecurityCraft;
 import net.geforcemods.securitycraft.api.ILockable;
 import net.geforcemods.securitycraft.api.IViewActivated;
 import net.geforcemods.securitycraft.api.Option;
@@ -24,23 +29,26 @@ import net.geforcemods.securitycraft.util.ITickingBlockEntity;
 import net.geforcemods.securitycraft.util.PlayerUtils;
 import net.geforcemods.securitycraft.util.Utils;
 import net.minecraft.ChatFormatting;
+import net.minecraft.Util;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.NbtOps;
+import net.minecraft.nbt.NbtUtils;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.server.players.GameProfileCache;
 import net.minecraft.util.StringUtil;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.component.ResolvableProfile;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.entity.SkullBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraftforge.server.ServerLifecycleHooks;
 
 public class RetinalScannerBlockEntity extends DisguisableBlockEntity implements IViewActivated, ITickingBlockEntity, ILockable {
+	private static GameProfileCache profileCache;
+	private static MinecraftSessionService sessionService;
+	private static Executor mainThreadExecutor;
 	private BooleanOption activatedByEntities = new BooleanOption("activatedByEntities", false);
 	private BooleanOption sendMessage = new BooleanOption("sendMessage", true);
 	private IntOption signalLength = new SignalLengthOption(60);
@@ -52,7 +60,7 @@ public class RetinalScannerBlockEntity extends DisguisableBlockEntity implements
 	};
 	private DisabledOption disabled = new DisabledOption(false);
 	private RespectInvisibilityOption respectInvisibility = new RespectInvisibilityOption();
-	private ResolvableProfile ownerProfile;
+	private GameProfile ownerProfile;
 	private int viewCooldown = 0;
 
 	public RetinalScannerBlockEntity(BlockPos pos, BlockState state) {
@@ -174,53 +182,95 @@ public class RetinalScannerBlockEntity extends DisguisableBlockEntity implements
 		};
 	}
 
-	@Override
-	public void saveAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.saveAdditional(tag, lookupProvider);
+	public static void setProfileCache(GameProfileCache profileCache) {
+		RetinalScannerBlockEntity.profileCache = profileCache;
+	}
 
-		if (!StringUtil.isNullOrEmpty(getOwner().getName()) && !(getOwner().getName().equals("owner")) && ownerProfile != null)
-			tag.put("ownerProfile", ResolvableProfile.CODEC.encodeStart(NbtOps.INSTANCE, ownerProfile).getOrThrow());
+	public static void setSessionService(MinecraftSessionService sessionService) {
+		RetinalScannerBlockEntity.sessionService = sessionService;
+	}
+
+	public static void setMainThreadExecutor(Executor mainThreadExecutor) {
+		RetinalScannerBlockEntity.mainThreadExecutor = mainThreadExecutor;
 	}
 
 	@Override
-	public void loadAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.loadAdditional(tag, lookupProvider);
+	public void saveAdditional(CompoundTag tag) {
+		super.saveAdditional(tag);
 
-		if (tag.contains("ownerProfile")) {
-			CompoundTag ownerProfileTag = tag.getCompound("ownerProfile");
+		if (!StringUtil.isNullOrEmpty(getOwner().getName()) && !(getOwner().getName().equals("owner")) && ownerProfile != null) {
+			CompoundTag ownerProfileTag = new CompoundTag();
+			NbtUtils.writeGameProfile(ownerProfileTag, ownerProfile);
 
-			//for upgrading pre-1.20.5 scanners
-			if (ownerProfileTag.contains("Name"))
-				ownerProfileTag.putString("name", ownerProfileTag.getString("Name"));
-
-			ResolvableProfile.CODEC.parse(NbtOps.INSTANCE, ownerProfileTag).resultOrPartial(name -> SecurityCraft.LOGGER.error("Failed to load profile from player head: {}", name)).ifPresent(this::setOwnerProfile);
+			tag.put("ownerProfile", ownerProfileTag);
 		}
+	}
+
+	@Override
+	public void load(CompoundTag tag) {
+		super.load(tag);
+
+		if (tag.contains("ownerProfile", 10))
+			setPlayerProfile(NbtUtils.readGameProfile(tag.getCompound("ownerProfile")));
 	}
 
 	@Override
 	public void onOwnerChanged(BlockState state, Level world, BlockPos pos, Player player, Owner oldOwner, Owner newOwner) {
-		setOwnerProfile(new ResolvableProfile(Optional.of(getOwner().getName()), Optional.empty(), new PropertyMap()));
+		setPlayerProfile(new GameProfile(null, getOwner().getName()));
 		super.onOwnerChanged(state, world, pos, player, oldOwner, newOwner);
 	}
 
-	public void setOwnerProfile(ResolvableProfile ownerProfile) {
-		this.ownerProfile = ownerProfile;
-		updateOwnerProfile();
+	@Nullable
+	public GameProfile getPlayerProfile() {
+		return ownerProfile;
 	}
 
-	private void updateOwnerProfile() {
-		if (ownerProfile != null && !ownerProfile.isResolved()) {
-			ownerProfile.resolve().thenAcceptAsync(ownerProfile -> {
-				this.ownerProfile = ownerProfile;
-				setChanged();
-			}, SkullBlockEntity.CHECKED_MAIN_THREAD_EXECUTOR);
+	public void setPlayerProfile(@Nullable GameProfile profile) {
+		synchronized (this) {
+			ownerProfile = profile;
+		}
+
+		updatePlayerProfile();
+	}
+
+	public void updatePlayerProfile() {
+		if (ServerLifecycleHooks.getCurrentServer() != null) {
+			if (profileCache == null)
+				setProfileCache(ServerLifecycleHooks.getCurrentServer().getProfileCache());
+
+			if (sessionService == null)
+				setSessionService(ServerLifecycleHooks.getCurrentServer().getSessionService());
+
+			if (mainThreadExecutor == null)
+				setMainThreadExecutor(ServerLifecycleHooks.getCurrentServer());
+		}
+
+		updateGameProfile(ownerProfile, profile -> {
+			ownerProfile = profile;
+			setChanged();
+		});
+	}
+
+	private void updateGameProfile(GameProfile input, Consumer<GameProfile> onChanged) {
+		if (ConfigHandler.SERVER.retinalScannerFace.get() && input != null && !StringUtil.isNullOrEmpty(input.getName()) && (!input.isComplete() || !input.getProperties().containsKey("textures")) && profileCache != null && sessionService != null) {
+			profileCache.getAsync(input.getName(), result -> Util.backgroundExecutor().execute(() -> {
+				Util.ifElse(result, gameProfile -> {
+					Property textures = (Property) Iterables.getFirst(gameProfile.getProperties().get("textures"), (Object) null);
+
+					if (textures == null)
+						gameProfile = sessionService.fillProfileProperties(gameProfile, true);
+
+					GameProfile profile = gameProfile;
+
+					mainThreadExecutor.execute(() -> {
+						profileCache.add(profile);
+						onChanged.accept(profile);
+					});
+				}, () -> mainThreadExecutor.execute(() -> onChanged.accept(input)));
+			}));
 		}
 		else
-			setChanged();
-	}
-
-	public ResolvableProfile getPlayerProfile() {
-		return ownerProfile;
+			onChanged.accept(input);
 	}
 
 	@Override

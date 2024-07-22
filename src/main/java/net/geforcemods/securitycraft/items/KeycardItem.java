@@ -2,14 +2,16 @@ package net.geforcemods.securitycraft.items;
 
 import java.util.List;
 
+import org.apache.commons.lang3.StringUtils;
+
 import net.geforcemods.securitycraft.SCContent;
-import net.geforcemods.securitycraft.components.KeycardData;
-import net.geforcemods.securitycraft.components.OwnerData;
 import net.geforcemods.securitycraft.util.Utils;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.world.level.Level;
 
 public class KeycardItem extends Item {
 	private static final Component LINK_INFO = Component.translatable("tooltip.securitycraft:keycard.link_info").setStyle(Utils.GRAY_STYLE);
@@ -29,20 +31,22 @@ public class KeycardItem extends Item {
 	}
 
 	@Override
-	public void appendHoverText(ItemStack stack, TooltipContext ctx, List<Component> list, TooltipFlag flag) {
-		if (this != SCContent.LIMITED_USE_KEYCARD.get()) {
-			OwnerData ownerData = stack.getOrDefault(SCContent.OWNER_DATA, OwnerData.DEFAULT);
-			KeycardData keycardData = stack.get(SCContent.KEYCARD_DATA);
+	public void appendHoverText(ItemStack stack, Level level, List<Component> list, TooltipFlag flag) {
+		if (this == SCContent.LIMITED_USE_KEYCARD.get())
+			return;
 
-			if (ownerData != null && !ownerData.showInTooltip())
-				list.add(Component.translatable("tooltip.securitycraft:keycard.reader_owner", ownerData.name()).setStyle(Utils.GRAY_STYLE));
+		CompoundTag tag = stack.getOrCreateTag();
 
-			if (keycardData != null)
-				keycardData.addToTooltip(ctx, list::add, flag);
-			else {
-				list.add(LINK_INFO);
-				list.add(LIMITED_INFO);
-			}
+		if (tag.getBoolean("linked")) {
+			list.add(Component.translatable("tooltip.securitycraft:keycard.signature", StringUtils.leftPad("" + tag.getInt("signature"), 5, "0")).setStyle(Utils.GRAY_STYLE));
+			list.add(Component.translatable("tooltip.securitycraft:keycard.reader_owner", tag.getString("ownerName")).setStyle(Utils.GRAY_STYLE));
 		}
+		else
+			list.add(LINK_INFO);
+
+		if (tag.getBoolean("limited"))
+			list.add(Component.translatable("tooltip.securitycraft:keycard.uses", tag.getInt("uses")).setStyle(Utils.GRAY_STYLE));
+		else
+			list.add(LIMITED_INFO);
 	}
 }

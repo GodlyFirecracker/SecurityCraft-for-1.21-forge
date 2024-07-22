@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "group": "securitycraft:walls",
+  "key": {
+    "B": {
+      "item": "securitycraft:reinforced_red_nether_bricks"
+    }
+  },
+  "pattern": [
+    "BBB",
+    "BBB"
+  ],
+  "result": {
+    "count": 6,
+    "item": "securitycraft:reinforced_red_nether_brick_wall"
+  },
+  "show_notification": true
+}

@@ -1,33 +1,48 @@
 package net.geforcemods.securitycraft.network.client;
 
-import net.geforcemods.securitycraft.SecurityCraft;
+import java.util.function.Supplier;
+
 import net.geforcemods.securitycraft.blockentities.UsernameLoggerBlockEntity;
+import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraftforge.network.NetworkEvent;
 
-public record UpdateLogger(BlockPos pos, int index, String username, String uuid, long timestamp) implements CustomPacketPayload {
+public class UpdateLogger {
+	private BlockPos pos;
+	private int index;
+	private String username;
+	private String uuid;
+	private long timestamp;
 
-	public static final Type<UpdateLogger> TYPE = new Type<>(SecurityCraft.resLoc("update_logger"));
-	//@formatter:off
-	public static final StreamCodec<RegistryFriendlyByteBuf, UpdateLogger> STREAM_CODEC = StreamCodec.composite(
-			BlockPos.STREAM_CODEC, UpdateLogger::pos,
-			ByteBufCodecs.VAR_INT, UpdateLogger::index,
-			ByteBufCodecs.STRING_UTF8, UpdateLogger::username,
-			ByteBufCodecs.STRING_UTF8, UpdateLogger::uuid,
-			ByteBufCodecs.VAR_LONG, UpdateLogger::timestamp,
-			UpdateLogger::new);
-	//@formatter:on
-	@Override
-	public Type<? extends CustomPacketPayload> type() {
-		return TYPE;
+	public UpdateLogger() {}
+
+	public UpdateLogger(BlockPos pos, int index, String username, String uuid, long timestamp) {
+		this.pos = pos;
+		this.index = index;
+		this.username = username;
+		this.uuid = uuid;
+		this.timestamp = timestamp;
 	}
 
-	public void handle(IPayloadContext ctx) {
-		UsernameLoggerBlockEntity be = (UsernameLoggerBlockEntity) ctx.player().level().getBlockEntity(pos);
+	public UpdateLogger(FriendlyByteBuf buf) {
+		pos = buf.readBlockPos();
+		index = buf.readInt();
+		username = buf.readUtf(Integer.MAX_VALUE / 4);
+		uuid = buf.readUtf(Integer.MAX_VALUE / 4);
+		timestamp = buf.readLong();
+	}
+
+	public void encode(FriendlyByteBuf buf) {
+		buf.writeBlockPos(pos);
+		buf.writeInt(index);
+		buf.writeUtf(username);
+		buf.writeUtf(uuid);
+		buf.writeLong(timestamp);
+	}
+
+	public void handle(Supplier<NetworkEvent.Context> ctx) {
+		UsernameLoggerBlockEntity be = (UsernameLoggerBlockEntity) Minecraft.getInstance().player.level().getBlockEntity(pos);
 
 		if (be != null) {
 			be.getPlayers()[index] = username;

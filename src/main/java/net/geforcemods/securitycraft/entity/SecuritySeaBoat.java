@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import net.geforcemods.securitycraft.SCContent;
 import net.geforcemods.securitycraft.SCTags;
+import net.geforcemods.securitycraft.SecurityCraft;
 import net.geforcemods.securitycraft.api.ICustomizable;
 import net.geforcemods.securitycraft.api.IModuleInventory;
 import net.geforcemods.securitycraft.api.IOwnable;
@@ -55,12 +56,15 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.fml.loading.FMLEnvironment;
-import net.neoforged.neoforge.common.NeoForgeMod;
-import net.neoforged.neoforge.fluids.FluidType;
-import net.neoforged.neoforge.items.IItemHandler;
-import net.neoforged.neoforge.items.wrapper.InvWrapper;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraftforge.common.ForgeMod;
+import net.minecraftforge.common.capabilities.Capability;
+import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.common.util.LazyOptional;
+import net.minecraftforge.fluids.FluidType;
+import net.minecraftforge.fml.loading.FMLEnvironment;
+import net.minecraftforge.items.IItemHandler;
+import net.minecraftforge.network.NetworkHooks;
+import net.minecraftforge.network.PacketDistributor;
 
 public class SecuritySeaBoat extends ChestBoat implements IOwnable, IPasscodeProtected, IModuleInventory, ICustomizable {
 	private static final EntityDataAccessor<Owner> OWNER = SynchedEntityData.<Owner>defineId(SecuritySeaBoat.class, Owner.getSerializer());
@@ -76,6 +80,7 @@ public class SecuritySeaBoat extends ChestBoat implements IOwnable, IPasscodePro
 	private EntityDataWrappedOption<Boolean> sendDenylistMessage = new SendDenylistMessageOption(true).wrapForEntityData(SEND_DENYLIST_MESSAGE, () -> entityData);
 	private EntityDataWrappedOption<Integer> smartModuleCooldown = new SmartModuleCooldownOption().wrapForEntityData(SMART_MODULE_COOLDOWN, () -> entityData);
 	private boolean isInLava = false;
+	private LazyOptional<IItemHandler> insertOnlyHandler;
 
 	public SecuritySeaBoat(EntityType<? extends Boat> type, Level level) {
 		super(SCContent.SECURITY_SEA_BOAT_ENTITY.get(), level);
@@ -90,15 +95,15 @@ public class SecuritySeaBoat extends ChestBoat implements IOwnable, IPasscodePro
 	}
 
 	@Override
-	protected void defineSynchedData(SynchedEntityData.Builder builder) {
-		super.defineSynchedData(builder);
-		builder.define(OWNER, new Owner());
-		builder.define(SEND_ALLOWLIST_MESSAGE, false);
-		builder.define(SEND_DENYLIST_MESSAGE, true);
-		builder.define(SMART_MODULE_COOLDOWN, 100);
-		builder.define(COOLDOWN_END, 0L);
-		builder.define(MODULE_STATES, new EnumMap<>(ModuleType.class));
-		builder.define(MODULES, NonNullList.<ItemStack>withSize(getMaxNumberOfModules(), ItemStack.EMPTY));
+	protected void defineSynchedData() {
+		super.defineSynchedData();
+		entityData.define(OWNER, new Owner());
+		entityData.define(SEND_ALLOWLIST_MESSAGE, false);
+		entityData.define(SEND_DENYLIST_MESSAGE, true);
+		entityData.define(SMART_MODULE_COOLDOWN, 100);
+		entityData.define(COOLDOWN_END, 0L);
+		entityData.define(MODULE_STATES, new EnumMap<>(ModuleType.class));
+		entityData.define(MODULES, NonNullList.<ItemStack>withSize(getMaxNumberOfModules(), ItemStack.EMPTY));
 	}
 
 	@Override
@@ -128,7 +133,7 @@ public class SecuritySeaBoat extends ChestBoat implements IOwnable, IPasscodePro
 			else if (stack.is(SCContent.UNIVERSAL_KEY_CHANGER.get())) {
 				if (!level.isClientSide) {
 					if (isOwnedBy(player) || player.isCreative())
-						PacketDistributor.sendToPlayer((ServerPlayer) player, new OpenScreen(DataType.CHANGE_PASSCODE_FOR_ENTITY, getId()));
+						SecurityCraft.CHANNEL.send(PacketDistributor.PLAYER.with(() -> (ServerPlayer) player), new OpenScreen(DataType.CHANGE_PASSCODE_FOR_ENTITY, getId()));
 					else
 						PlayerUtils.sendMessageToPlayer(player, Utils.localize(SCContent.UNIVERSAL_KEY_CHANGER.get().getDescriptionId()), Utils.localize("messages.securitycraft:notOwned", PlayerUtils.getOwnerComponent(getOwner())), ChatFormatting.RED);
 				}
@@ -154,7 +159,7 @@ public class SecuritySeaBoat extends ChestBoat implements IOwnable, IPasscodePro
 					if (!level.isClientSide) {
 						BlockPos pos = blockPosition();
 
-						player.openMenu(new MenuProvider() {
+						NetworkHooks.openScreen((ServerPlayer) player, new MenuProvider() {
 							@Override
 							public AbstractContainerMenu createMenu(int windowId, Inventory inv, Player player) {
 								return new CustomizeBlockMenu(windowId, level, pos, SecuritySeaBoat.super.getId(), inv);
@@ -225,12 +230,12 @@ public class SecuritySeaBoat extends ChestBoat implements IOwnable, IPasscodePro
 	@Override
 	public void openPasscodeGUI(Level level, BlockPos pos, Player player) {
 		if (!level.isClientSide && getPasscode() != null)
-			PacketDistributor.sendToPlayer((ServerPlayer) player, new OpenScreen(DataType.CHECK_PASSCODE_FOR_ENTITY, getId()));
+			SecurityCraft.CHANNEL.send(PacketDistributor.PLAYER.with(() -> (ServerPlayer) player), new OpenScreen(DataType.CHECK_PASSCODE_FOR_ENTITY, getId()));
 	}
 
 	@Override
 	public void openSetPasscodeScreen(ServerPlayer player, BlockPos pos) {
-		PacketDistributor.sendToPlayer(player, new OpenScreen(DataType.SET_PASSCODE_FOR_ENTITY, getId()));
+		SecurityCraft.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new OpenScreen(DataType.SET_PASSCODE_FOR_ENTITY, getId()));
 	}
 
 	@Override
@@ -240,7 +245,7 @@ public class SecuritySeaBoat extends ChestBoat implements IOwnable, IPasscodePro
 
 	@Override
 	public boolean canBoatInFluid(FluidType type) {
-		return super.canBoatInFluid(type) || type == NeoForgeMod.LAVA_TYPE;
+		return super.canBoatInFluid(type) || type == ForgeMod.LAVA_TYPE.get();
 	}
 
 	@Override
@@ -269,7 +274,7 @@ public class SecuritySeaBoat extends ChestBoat implements IOwnable, IPasscodePro
 					passenger.setRemainingFireTicks(passenger.getRemainingFireTicks() + 1);
 
 					if (passenger.getRemainingFireTicks() == 0)
-						passenger.igniteForSeconds(8);
+						passenger.setSecondsOnFire(8);
 				}
 
 				passenger.hurt(level().damageSources().inFire(), 1.0F);
@@ -321,8 +326,33 @@ public class SecuritySeaBoat extends ChestBoat implements IOwnable, IPasscodePro
 		super.remove(reason);
 	}
 
-	public static IItemHandler getCapability(SecuritySeaBoat boat, Direction direction) {
-		return BlockUtils.isAllowedToExtractFromProtectedObject(direction, boat, boat.level(), boat.blockPosition()) ? new InvWrapper(boat) : new InsertOnlyInvWrapper(boat);
+	@Override
+	public <T> LazyOptional<T> getCapability(Capability<T> cap, Direction side) {
+		if (isAlive() && cap == ForgeCapabilities.ITEM_HANDLER)
+			return BlockUtils.isAllowedToExtractFromProtectedObject(side, this, level(), blockPosition()) ? super.getCapability(cap, side) : getInsertOnlyHandler().cast();
+		else
+			return super.getCapability(cap, side);
+	}
+
+	@Override
+	public void invalidateCaps() {
+		if (insertOnlyHandler != null)
+			insertOnlyHandler.invalidate();
+
+		super.invalidateCaps();
+	}
+
+	@Override
+	public void reviveCaps() {
+		insertOnlyHandler = null; //recreated in getInsertOnlyHandler
+		super.reviveCaps();
+	}
+
+	private LazyOptional<IItemHandler> getInsertOnlyHandler() {
+		if (insertOnlyHandler == null)
+			insertOnlyHandler = LazyOptional.of(() -> new InsertOnlyInvWrapper(SecuritySeaBoat.this));
+
+		return insertOnlyHandler;
 	}
 
 	@Override
@@ -331,7 +361,7 @@ public class SecuritySeaBoat extends ChestBoat implements IOwnable, IPasscodePro
 		long cooldownLeft;
 
 		super.addAdditionalSaveData(tag);
-		writeModuleInventory(tag, registryAccess());
+		writeModuleInventory(tag);
 		writeModuleStates(tag);
 		writeOptions(tag);
 		cooldownLeft = getCooldownEnd() - System.currentTimeMillis();
@@ -349,7 +379,7 @@ public class SecuritySeaBoat extends ChestBoat implements IOwnable, IPasscodePro
 	@Override
 	protected void readAdditionalSaveData(CompoundTag tag) {
 		super.readAdditionalSaveData(tag);
-		entityData.set(MODULES, readModuleInventory(tag, registryAccess()));
+		entityData.set(MODULES, readModuleInventory(tag));
 		entityData.set(MODULE_STATES, readModuleStates(tag));
 		readOptions(tag);
 		entityData.set(COOLDOWN_END, System.currentTimeMillis() + tag.getLong("cooldownLeft"));

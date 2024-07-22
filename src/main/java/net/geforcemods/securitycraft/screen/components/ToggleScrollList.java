@@ -12,7 +12,6 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat.Mode;
 
-import net.geforcemods.securitycraft.SecurityCraft;
 import net.geforcemods.securitycraft.util.IToggleableEntries;
 import net.geforcemods.securitycraft.util.Utils;
 import net.minecraft.client.Minecraft;
@@ -23,11 +22,11 @@ import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
-import net.neoforged.neoforge.client.gui.widget.ScrollPanel;
+import net.minecraftforge.client.gui.widget.ScrollPanel;
+import net.minecraftforge.fml.util.ObfuscationReflectionHelper;
 
 public class ToggleScrollList<T> extends ScrollPanel {
-	private static final ResourceLocation CONFIRM_SPRITE = SecurityCraft.mcResLoc("container/beacon/confirm");
-	private static final ResourceLocation CANCEL_SPRITE = SecurityCraft.mcResLoc("container/beacon/cancel");
+	private static final ResourceLocation BEACON_GUI = new ResourceLocation("textures/gui/container/beacon.png");
 	private static final int SLOT_HEIGHT = 12;
 	private final int listLength;
 	private final List<T> orderedFilterList;
@@ -86,11 +85,6 @@ public class ToggleScrollList<T> extends ScrollPanel {
 	}
 
 	@Override
-	protected void drawBackground(GuiGraphics guiGraphics, Tesselator tess, float partialTick) {
-		drawGradientRect(guiGraphics, left, top, right, bottom, 0xC0101010, 0xD0101010);
-	}
-
-	@Override
 	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
 		super.render(guiGraphics, mouseX, mouseY, partialTick);
 
@@ -108,7 +102,7 @@ public class ToggleScrollList<T> extends ScrollPanel {
 	}
 
 	@Override
-	protected void drawPanel(GuiGraphics guiGraphics, int entryRight, int relativeY, Tesselator tesselator, int mouseX, int mouseY) {
+	protected void drawPanel(GuiGraphics guiGraphics, int entryRight, int relativeY, Tesselator tess, int mouseX, int mouseY) {
 		Font font = Minecraft.getInstance().font;
 		int baseY = top + border - (int) scrollDistance;
 		int slotBuffer = SLOT_HEIGHT - 4;
@@ -120,20 +114,20 @@ public class ToggleScrollList<T> extends ScrollPanel {
 			int min = left;
 			int max = entryRight - 6; //6 is the width of the scrollbar
 			int slotTop = baseY + slotIndex * SLOT_HEIGHT;
-			BufferBuilder bufferBuilder;
+			BufferBuilder bufferBuilder = tess.getBuilder();
 
 			RenderSystem.enableBlend();
 			RenderSystem.defaultBlendFunc();
-			bufferBuilder = tesselator.begin(Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
-			bufferBuilder.addVertex(min, slotTop + slotBuffer + 2, 0).setColor(0x80, 0x80, 0x80, 0xFF);
-			bufferBuilder.addVertex(max, slotTop + slotBuffer + 2, 0).setColor(0x80, 0x80, 0x80, 0xFF);
-			bufferBuilder.addVertex(max, slotTop - 2, 0).setColor(0x80, 0x80, 0x80, 0xFF);
-			bufferBuilder.addVertex(min, slotTop - 2, 0).setColor(0x80, 0x80, 0x80, 0xFF);
-			bufferBuilder.addVertex(min + 1, slotTop + slotBuffer + 1, 0).setColor(0x00, 0x00, 0x00, 0xFF);
-			bufferBuilder.addVertex(max - 1, slotTop + slotBuffer + 1, 0).setColor(0x00, 0x00, 0x00, 0xFF);
-			bufferBuilder.addVertex(max - 1, slotTop - 1, 0).setColor(0x00, 0x00, 0x00, 0xFF);
-			bufferBuilder.addVertex(min + 1, slotTop - 1, 0).setColor(0x00, 0x00, 0x00, 0xFF);
-			BufferUploader.drawWithShader(bufferBuilder.buildOrThrow());
+			bufferBuilder.begin(Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+			bufferBuilder.vertex(min, slotTop + slotBuffer + 2, 0).color(0x80, 0x80, 0x80, 0xFF).endVertex();
+			bufferBuilder.vertex(max, slotTop + slotBuffer + 2, 0).color(0x80, 0x80, 0x80, 0xFF).endVertex();
+			bufferBuilder.vertex(max, slotTop - 2, 0).color(0x80, 0x80, 0x80, 0xFF).endVertex();
+			bufferBuilder.vertex(min, slotTop - 2, 0).color(0x80, 0x80, 0x80, 0xFF).endVertex();
+			bufferBuilder.vertex(min + 1, slotTop + slotBuffer + 1, 0).color(0x00, 0x00, 0x00, 0xFF).endVertex();
+			bufferBuilder.vertex(max - 1, slotTop + slotBuffer + 1, 0).color(0x00, 0x00, 0x00, 0xFF).endVertex();
+			bufferBuilder.vertex(max - 1, slotTop - 1, 0).color(0x00, 0x00, 0x00, 0xFF).endVertex();
+			bufferBuilder.vertex(min + 1, slotTop - 1, 0).color(0x00, 0x00, 0x00, 0xFF).endVertex();
+			BufferUploader.drawWithShader(bufferBuilder.end());
 			RenderSystem.disableBlend();
 		}
 
@@ -145,9 +139,29 @@ public class ToggleScrollList<T> extends ScrollPanel {
 			int yStart = relativeY + (SLOT_HEIGHT * i);
 
 			guiGraphics.drawString(font, name, left + width / 2 - font.width(name) / 2, yStart, 0xC6C6C6, false);
-			guiGraphics.blitSprite(be.getFilter(type) ? CONFIRM_SPRITE : CANCEL_SPRITE, left + 1, yStart - 3, 12, 12);
+			guiGraphics.blit(BEACON_GUI, left, yStart - 3, 14, 14, be.getFilter(type) ? 88 : 110, 219, 21, 22, 256, 256);
 			i++;
 		}
+	}
+
+	@Override
+	public boolean mouseClicked(double mouseX, double mouseY, int button) {
+		boolean returnValue = super.mouseClicked(mouseX, mouseY, button);
+		int barLeft = ObfuscationReflectionHelper.getPrivateValue(ScrollPanel.class, this, "barLeft");
+		int barWidth = ObfuscationReflectionHelper.getPrivateValue(ScrollPanel.class, this, "barWidth");
+		boolean previousScrolling = ObfuscationReflectionHelper.getPrivateValue(ScrollPanel.class, this, "scrolling");
+
+		if (previousScrolling) {
+			boolean scrolling = button == 0 && mouseX >= barLeft && mouseX < barLeft + barWidth && mouseY >= top && mouseY <= bottom;
+
+			if (!scrolling)
+				ObfuscationReflectionHelper.setPrivateValue(ScrollPanel.class, this, scrolling, "scrolling");
+
+			if (!isMouseOver(mouseX, mouseY) || !scrolling)
+				return clickPanel(mouseX - left, mouseY - top + (int) scrollDistance - border, button);
+		}
+
+		return previousScrolling || (!previousScrolling && returnValue);
 	}
 
 	@Override

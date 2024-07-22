@@ -15,7 +15,6 @@ import net.geforcemods.securitycraft.misc.TargetingMode;
 import net.geforcemods.securitycraft.util.ITickingBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -26,9 +25,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
-import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.capabilities.Capabilities;
-import net.neoforged.neoforge.items.IItemHandler;
+import net.minecraftforge.common.capabilities.ForgeCapabilities;
 
 public class IMSBlockEntity extends CustomizableBlockEntity implements ITickingBlockEntity {
 	private IntOption range = new IntOption("range", 15, 1, 30, 1);
@@ -56,9 +53,7 @@ public class IMSBlockEntity extends CustomizableBlockEntity implements ITickingB
 				BlockEntity be = level.getBlockEntity(pos.below());
 
 				if (be != null) {
-					IItemHandler handler = level.getCapability(Capabilities.ItemHandler.BLOCK, pos, be.getBlockState(), be, Direction.UP);
-
-					if (handler != null) {
+					be.getCapability(ForgeCapabilities.ITEM_HANDLER, Direction.UP).ifPresent(handler -> {
 						for (int i = 0; i < handler.getSlots(); i++) {
 							if (handler.getStackInSlot(i).getItem() == SCContent.BOUNCING_BETTY.get().asItem()) {
 								handler.extractItem(i, 1, false);
@@ -66,7 +61,7 @@ public class IMSBlockEntity extends CustomizableBlockEntity implements ITickingB
 								return;
 							}
 						}
-					}
+					});
 				}
 			}
 			else
@@ -95,10 +90,10 @@ public class IMSBlockEntity extends CustomizableBlockEntity implements ITickingB
 				double accelerationY = e.getBoundingBox().minY + e.getBbHeight() / 2.0F - pos.getY() - launchHeight;
 				double accelerationZ = e.getZ() - pos.getZ();
 
-				level.addFreshEntity(new IMSBomb(level, pos.getX() + addToX, pos.getY(), pos.getZ() + addToZ, new Vec3(accelerationX, accelerationY, accelerationZ), launchHeight, this));
-
-				if (!level.isClientSide)
+				if (!level.isClientSide) {
+					level.addFreshEntity(new IMSBomb(level, pos.getX() + addToX, pos.getY(), pos.getZ() + addToZ, accelerationX, accelerationY, accelerationZ, launchHeight, this));
 					level.playSound(null, pos.getX(), pos.getY(), pos.getZ(), SoundEvents.ARROW_SHOOT, SoundSource.PLAYERS, 1.0F, 1.0F);
+				}
 
 				bombsRemaining--;
 				updateBombCount = true;
@@ -124,16 +119,16 @@ public class IMSBlockEntity extends CustomizableBlockEntity implements ITickingB
 	}
 
 	@Override
-	public void saveAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.saveAdditional(tag, lookupProvider);
+	public void saveAdditional(CompoundTag tag) {
+		super.saveAdditional(tag);
 
 		tag.putInt("bombsRemaining", bombsRemaining);
 		tag.putBoolean("updateBombCount", updateBombCount);
 	}
 
 	@Override
-	public void loadAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.loadAdditional(tag, lookupProvider);
+	public void load(CompoundTag tag) {
+		super.load(tag);
 
 		bombsRemaining = tag.getInt("bombsRemaining");
 		updateBombCount = tag.getBoolean("updateBombCount");

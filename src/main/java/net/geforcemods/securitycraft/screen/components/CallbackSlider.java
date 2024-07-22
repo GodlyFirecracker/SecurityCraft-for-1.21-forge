@@ -3,9 +3,9 @@ package net.geforcemods.securitycraft.screen.components;
 import java.util.function.Consumer;
 
 import net.minecraft.network.chat.Component;
-import net.neoforged.neoforge.client.gui.widget.ExtendedSlider;
+import net.minecraftforge.client.gui.widget.ForgeSlider;
 
-public class CallbackSlider extends ExtendedSlider {
+public class CallbackSlider extends ForgeSlider {
 	private final Consumer<CallbackSlider> onApplyValue;
 
 	public CallbackSlider(int x, int y, int width, int height, Component prefix, Component suffix, double minValue, double maxValue, double currentValue, boolean drawString, Consumer<CallbackSlider> onApplyValue) {

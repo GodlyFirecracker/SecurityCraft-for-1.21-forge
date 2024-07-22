@@ -1,42 +1,48 @@
 package net.geforcemods.securitycraft.network.server;
 
+import java.util.function.Supplier;
+
 import net.geforcemods.securitycraft.SCContent;
-import net.geforcemods.securitycraft.SecurityCraft;
-import net.geforcemods.securitycraft.components.OwnerData;
-import net.geforcemods.securitycraft.components.PasscodeData;
+import net.geforcemods.securitycraft.items.BriefcaseItem;
 import net.geforcemods.securitycraft.util.PasscodeUtils;
 import net.geforcemods.securitycraft.util.PlayerUtils;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.network.NetworkEvent;
 
-public record SetBriefcasePasscodeAndOwner(String passcode) implements CustomPacketPayload {
-	public static final Type<SetBriefcasePasscodeAndOwner> TYPE = new Type<>(SecurityCraft.resLoc("set_briefcase_passcode_and_owner"));
-	//@formatter:off
-	public static final StreamCodec<RegistryFriendlyByteBuf, SetBriefcasePasscodeAndOwner> STREAM_CODEC = StreamCodec.composite(
-			ByteBufCodecs.STRING_UTF8, packet -> packet.passcode.isEmpty() ? packet.passcode : PasscodeUtils.hashPasscodeWithoutSalt(packet.passcode),
-			SetBriefcasePasscodeAndOwner::new);
-	//@formatter:on
+public class SetBriefcasePasscodeAndOwner {
+	private String passcode;
 
-	@Override
-	public Type<? extends CustomPacketPayload> type() {
-		return TYPE;
+	public SetBriefcasePasscodeAndOwner() {}
+
+	public SetBriefcasePasscodeAndOwner(String passcode) {
+		this.passcode = passcode.isEmpty() ? passcode : PasscodeUtils.hashPasscodeWithoutSalt(passcode);
 	}
 
-	public void handle(IPayloadContext ctx) {
-		Player player = ctx.player();
+	public SetBriefcasePasscodeAndOwner(FriendlyByteBuf buf) {
+		passcode = buf.readUtf();
+	}
+
+	public void encode(FriendlyByteBuf buf) {
+		buf.writeUtf(passcode);
+	}
+
+	public void handle(Supplier<NetworkEvent.Context> ctx) {
+		Player player = ctx.get().getSender();
 		ItemStack stack = PlayerUtils.getItemStackFromAnyHand(player, SCContent.BRIEFCASE.get());
 
 		if (!stack.isEmpty()) {
-			if (!stack.has(SCContent.OWNER_DATA))
-				stack.set(SCContent.OWNER_DATA, OwnerData.fromPlayer(player, true));
+			CompoundTag tag = stack.getOrCreateTag();
 
-			if (!passcode.isEmpty() && !stack.has(SCContent.PASSCODE_DATA))
-				PasscodeData.hashAndSetPasscode(stack, passcode, newPasscodeData -> {});
+			if (!tag.contains("owner")) {
+				tag.putString("owner", player.getName().getString());
+				tag.putString("ownerUUID", player.getUUID().toString());
+			}
+
+			if (!passcode.isEmpty() && !tag.contains("passcode"))
+				BriefcaseItem.hashAndSetPasscode(tag, passcode, p -> {});
 		}
 	}
 }

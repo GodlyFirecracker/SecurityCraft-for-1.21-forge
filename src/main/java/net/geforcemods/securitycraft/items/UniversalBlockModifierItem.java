@@ -1,15 +1,16 @@
 package net.geforcemods.securitycraft.items;
 
+import net.geforcemods.securitycraft.api.IDisguisable;
 import net.geforcemods.securitycraft.api.IModuleInventory;
 import net.geforcemods.securitycraft.api.IOwnable;
 import net.geforcemods.securitycraft.blockentities.DisplayCaseBlockEntity;
-import net.geforcemods.securitycraft.blocks.DisguisableBlock;
 import net.geforcemods.securitycraft.inventory.CustomizeBlockMenu;
 import net.geforcemods.securitycraft.util.PlayerUtils;
 import net.geforcemods.securitycraft.util.Utils;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.Nameable;
@@ -22,6 +23,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraftforge.network.NetworkHooks;
 
 public class UniversalBlockModifierItem extends Item {
 	public UniversalBlockModifierItem(Item.Properties properties) {
@@ -39,13 +41,13 @@ public class UniversalBlockModifierItem extends Item {
 			return InteractionResult.PASS;
 		else if (be instanceof IModuleInventory) {
 			if (be instanceof IOwnable ownable && !ownable.isOwnedBy(player)) {
-				if (!(be.getBlockState().getBlock() instanceof DisguisableBlock db) || (((BlockItem) db.getDisguisedStack(level, pos).getItem()).getBlock() instanceof DisguisableBlock))
+				if (!(be.getBlockState().getBlock() instanceof IDisguisable db) || (((BlockItem) db.getDisguisedStack(level, pos).getItem()).getBlock() instanceof IDisguisable))
 					PlayerUtils.sendMessageToPlayer(player, Utils.localize(getDescriptionId()), Utils.localize("messages.securitycraft:notOwned", PlayerUtils.getOwnerComponent(ownable.getOwner())), ChatFormatting.RED);
 
 				return InteractionResult.FAIL;
 			}
 			else if (!ctx.getLevel().isClientSide) {
-				player.openMenu(new MenuProvider() {
+				NetworkHooks.openScreen((ServerPlayer) player, new MenuProvider() {
 					@Override
 					public AbstractContainerMenu createMenu(int windowId, Inventory inv, Player player) {
 						return new CustomizeBlockMenu(windowId, level, pos, inv);

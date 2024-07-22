@@ -27,13 +27,12 @@ import net.geforcemods.securitycraft.util.BlockUtils;
 import net.geforcemods.securitycraft.util.ITickingBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.Container;
-import net.minecraft.world.ContainerHelper;
 import net.minecraft.world.ContainerListener;
 import net.minecraft.world.Containers;
 import net.minecraft.world.MenuProvider;
@@ -46,16 +45,21 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.neoforge.items.IItemHandler;
-import net.neoforged.neoforge.items.wrapper.EmptyItemHandler;
+import net.minecraftforge.common.capabilities.Capability;
+import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.common.util.LazyOptional;
+import net.minecraftforge.items.IItemHandler;
+import net.minecraftforge.items.wrapper.EmptyHandler;
 
 public class InventoryScannerBlockEntity extends DisguisableBlockEntity implements Container, MenuProvider, ITickingBlockEntity, ILockable, ContainerListener {
+	private static final LazyOptional<IItemHandler> EMPTY_INVENTORY = LazyOptional.of(() -> EmptyHandler.INSTANCE);
 	private BooleanOption horizontal = new BooleanOption("horizontal", false);
 	private BooleanOption solidifyField = new BooleanOption("solidifyField", false);
 	private DisabledOption disabled = new DisabledOption(false);
 	private IgnoreOwnerOption ignoreOwner = new IgnoreOwnerOption(true);
 	private IntOption signalLength = new SignalLengthOption(60);
 	private RespectInvisibilityOption respectInvisibility = new RespectInvisibilityOption();
+	private LazyOptional<IItemHandler> storageHandler;
 	private NonNullList<ItemStack> inventoryContents = NonNullList.<ItemStack>withSize(37, ItemStack.EMPTY);
 	private boolean providePower;
 	private int signalCooldown, togglePowerCooldown;
@@ -92,24 +96,46 @@ public class InventoryScannerBlockEntity extends DisguisableBlockEntity implemen
 	}
 
 	@Override
-	public void loadAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.loadAdditional(tag, lookupProvider);
+	public void load(CompoundTag tag) {
+		ListTag list = tag.getList("Items", 10);
 
-		ContainerHelper.loadAllItems(tag, inventoryContents, lookupProvider);
+		super.load(tag);
+		inventoryContents = NonNullList.<ItemStack>withSize(getContainerSize(), ItemStack.EMPTY);
+
+		for (int i = 0; i < list.size(); ++i) {
+			CompoundTag stackTag = list.getCompound(i);
+			int slot = stackTag.getByte("Slot") & 255;
+
+			if (slot < inventoryContents.size())
+				inventoryContents.set(slot, ItemStack.of(stackTag));
+		}
+
 		signalCooldown = tag.getInt("cooldown");
 		providePower = tag.getBoolean("is_providing_power");
-		lens.fromTag(tag.getList("lens", Tag.TAG_COMPOUND), lookupProvider);
+		lens.fromTag(tag.getList("lens", Tag.TAG_COMPOUND));
 		lens.setChanged();
 	}
 
 	@Override
-	public void saveAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.saveAdditional(tag, lookupProvider);
+	public void saveAdditional(CompoundTag tag) {
+		super.saveAdditional(tag);
 
-		ContainerHelper.saveAllItems(tag, inventoryContents, lookupProvider);
+		ListTag list = new ListTag();
+
+		for (int i = 0; i < inventoryContents.size(); ++i) {
+			if (!inventoryContents.get(i).isEmpty()) {
+				CompoundTag stackTag = new CompoundTag();
+
+				stackTag.putByte("Slot", (byte) i);
+				inventoryContents.get(i).save(stackTag);
+				list.add(stackTag);
+			}
+		}
+
+		tag.put("Items", list);
 		tag.putInt("cooldown", signalCooldown);
 		tag.putBoolean("is_providing_power", providePower);
-		tag.put("lens", lens.createTag(lookupProvider));
+		tag.put("lens", lens.createTag());
 	}
 
 	@Override
@@ -244,17 +270,44 @@ public class InventoryScannerBlockEntity extends DisguisableBlockEntity implemen
 			otherScanner.getLensContainer().setItemExclusively(0, lens.getItem(0));
 	}
 
-	public static IItemHandler getCapability(InventoryScannerBlockEntity be, Direction side) {
-		if (BlockUtils.isAllowedToExtractFromProtectedObject(side, be)) {
-			return new ExtractOnlyItemStackHandler(be.inventoryContents) {
+	@Override
+	public <T> LazyOptional<T> getCapability(Capability<T> cap, Direction side) {
+		if (cap == ForgeCapabilities.ITEM_HANDLER)
+			return BlockUtils.isAllowedToExtractFromProtectedObject(side, this) ? getExtractionHandler().cast() : EMPTY_INVENTORY.cast(); //disallow inserting
+		else
+			return super.getCapability(cap, side);
+	}
+
+	@Override
+	public void invalidateCaps() {
+		if (storageHandler != null)
+			storageHandler.invalidate();
+
+		super.invalidateCaps();
+	}
+
+	@Override
+	public void reviveCaps() {
+		storageHandler = null; //recreated in getExtractionHandler
+		super.reviveCaps();
+	}
+
+	public LazyOptional<IItemHandler> getExtractionHandler() {
+		if (storageHandler == null) {
+			storageHandler = LazyOptional.of(() -> new ExtractOnlyItemStackHandler(inventoryContents) {
 				@Override
 				public ItemStack extractItem(int slot, int amount, boolean simulate) {
 					return slot < 10 ? ItemStack.EMPTY : super.extractItem(slot, amount, simulate); //don't allow extracting from the prohibited item slots
 				}
-			};
+			});
 		}
-		else
-			return EmptyItemHandler.INSTANCE; //disallow inserting
+
+		return storageHandler;
+	}
+
+	@Override
+	public int getMaxStackSize() {
+		return 64;
 	}
 
 	@Override
@@ -383,37 +436,40 @@ public class InventoryScannerBlockEntity extends DisguisableBlockEntity implemen
 
 	@Override
 	public <T> void onOptionChanged(Option<T> option) {
-		switch (option) {
-			case BooleanOption bo when option == horizontal -> {
+		if (option instanceof BooleanOption bo) {
+			if (option == horizontal) {
 				modifyFields((offsetPos, state) -> level.setBlockAndUpdate(offsetPos, state.setValue(InventoryScannerFieldBlock.HORIZONTAL, bo.get())), connectedScanner -> connectedScanner.setHorizontal(bo.get()));
 				level.setBlockAndUpdate(worldPosition, getBlockState().setValue(InventoryScannerBlock.HORIZONTAL, bo.get()));
 			}
-			case BooleanOption bo when option == solidifyField -> {
+			else if (option == solidifyField) {
 				InventoryScannerBlockEntity connectedScanner = InventoryScannerBlock.getConnectedInventoryScanner(level, worldPosition);
 
 				if (connectedScanner != null)
 					connectedScanner.setSolidifyField(bo.get());
 			}
-			case BooleanOption bo when option == disabled -> {
+			else if (option == disabled) {
 				if (!bo.get())
 					InventoryScannerBlock.checkAndPlaceAppropriately(level, worldPosition, true);
 				else
 					modifyFields((offsetPos, state) -> level.destroyBlock(offsetPos, false), connectedScanner -> connectedScanner.setDisabled(true));
 			}
-			case BooleanOption bo when option == ignoreOwner -> {
+			else if (option == ignoreOwner) {
 				InventoryScannerBlockEntity connectedScanner = InventoryScannerBlock.getConnectedInventoryScanner(level, worldPosition);
 
 				if (connectedScanner != null)
 					connectedScanner.setIgnoresOwner(bo.get());
 			}
-			case IntOption io when option == signalLength -> {
-				InventoryScannerBlockEntity connectedScanner = InventoryScannerBlock.getConnectedInventoryScanner(level, worldPosition);
-
-				if (connectedScanner != null)
-					connectedScanner.setSignalLength(io.get());
-			}
-			default -> throw new UnsupportedOperationException("Unhandled option synchronization in inventory scanner! " + option.getName());
+			else
+				throw new UnsupportedOperationException("Unhandled option synchronization in inventory scanner! " + option.getName());
 		}
+		else if (option instanceof IntOption io && option == signalLength) {
+			InventoryScannerBlockEntity connectedScanner = InventoryScannerBlock.getConnectedInventoryScanner(level, worldPosition);
+
+			if (connectedScanner != null)
+				connectedScanner.setSignalLength(io.get());
+		}
+		else
+			throw new UnsupportedOperationException("Unhandled option synchronization in inventory scanner! " + option.getName());
 
 		super.onOptionChanged(option);
 	}

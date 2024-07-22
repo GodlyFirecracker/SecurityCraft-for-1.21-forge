@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "B": {
+      "item": "securitycraft:reinforced_iron_block"
+    },
+    "D": {
+      "item": "securitycraft:reinforced_dispenser"
+    },
+    "I": {
+      "tag": "forge:ingots/iron"
+    },
+    "P": {
+      "item": "securitycraft:portable_radar"
+    },
+    "R": {
+      "tag": "forge:dusts/redstone"
+    }
+  },
+  "pattern": [
+    "RDR",
+    "IPI",
+    "BBB"
+  ],
+  "result": {
+    "item": "securitycraft:sentry"
+  },
+  "show_notification": true
+}

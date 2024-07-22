@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "I": {
+      "tag": "forge:ingots/iron"
+    },
+    "R": {
+      "tag": "forge:dusts/redstone"
+    }
+  },
+  "pattern": [
+    "III",
+    "IR ",
+    "III"
+  ],
+  "result": {
+    "item": "securitycraft:keypad_frame"
+  },
+  "show_notification": true
+}

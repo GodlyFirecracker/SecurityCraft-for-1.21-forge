@@ -1,7 +1,8 @@
 package net.geforcemods.securitycraft.entity.sentry;
 
-import net.neoforged.neoforge.items.IItemHandler;
+import net.minecraftforge.common.util.LazyOptional;
+import net.minecraftforge.items.IItemHandler;
 
 public interface ISentryBulletContainer {
-	public IItemHandler getHandlerForSentry(Sentry sentry);
+	public LazyOptional<IItemHandler> getHandlerForSentry(Sentry sentry);
 }

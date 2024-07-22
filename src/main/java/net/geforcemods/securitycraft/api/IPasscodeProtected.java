@@ -3,6 +3,7 @@ package net.geforcemods.securitycraft.api;
 import java.util.UUID;
 
 import net.geforcemods.securitycraft.ConfigHandler;
+import net.geforcemods.securitycraft.SecurityCraft;
 import net.geforcemods.securitycraft.misc.CustomDamageSources;
 import net.geforcemods.securitycraft.misc.ModuleType;
 import net.geforcemods.securitycraft.misc.SaltData;
@@ -21,7 +22,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraftforge.network.PacketDistributor;
 
 /**
  * Implementing this interface designates an object as being passcode-protected. Implementing this allows you to use
@@ -40,7 +41,7 @@ public interface IPasscodeProtected extends ICodebreakable {
 	 */
 	public default void openPasscodeGUI(Level level, BlockPos pos, Player player) {
 		if (!level.isClientSide && getPasscode() != null)
-			PacketDistributor.sendToPlayer((ServerPlayer) player, new OpenScreen(DataType.CHECK_PASSCODE, pos));
+			SecurityCraft.CHANNEL.send(PacketDistributor.PLAYER.with(() -> (ServerPlayer) player), new OpenScreen(DataType.CHECK_PASSCODE, pos));
 	}
 
 	/**
@@ -73,7 +74,7 @@ public interface IPasscodeProtected extends ICodebreakable {
 	 * @param pos The position to open the screen at
 	 */
 	default void openSetPasscodeScreen(ServerPlayer player, BlockPos pos) {
-		PacketDistributor.sendToPlayer(player, new OpenScreen(DataType.SET_PASSCODE, pos));
+		SecurityCraft.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new OpenScreen(DataType.SET_PASSCODE, pos));
 	}
 
 	@Override

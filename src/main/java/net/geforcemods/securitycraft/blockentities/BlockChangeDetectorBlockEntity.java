@@ -10,16 +10,15 @@ import net.geforcemods.securitycraft.api.Option;
 import net.geforcemods.securitycraft.api.Option.DisabledOption;
 import net.geforcemods.securitycraft.api.Option.IgnoreOwnerOption;
 import net.geforcemods.securitycraft.api.Option.IntOption;
+import net.geforcemods.securitycraft.blocks.AbstractPanelBlock;
 import net.geforcemods.securitycraft.blocks.BlockChangeDetectorBlock;
 import net.geforcemods.securitycraft.inventory.BlockChangeDetectorMenu;
 import net.geforcemods.securitycraft.misc.BlockEntityTracker;
 import net.geforcemods.securitycraft.misc.ModuleType;
 import net.geforcemods.securitycraft.util.BlockUtils;
 import net.geforcemods.securitycraft.util.ITickingBlockEntity;
-import net.geforcemods.securitycraft.util.Utils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderGetter;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
@@ -78,7 +77,7 @@ public class BlockChangeDetectorBlockEntity extends DisguisableBlockEntity imple
 			int signalLength = getSignalLength();
 
 			level.setBlockAndUpdate(worldPosition, getBlockState().cycle(BlockChangeDetectorBlock.POWERED));
-			BlockUtils.updateIndirectNeighbors(level, worldPosition, SCContent.BLOCK_CHANGE_DETECTOR.get());
+			BlockUtils.updateIndirectNeighbors(level, worldPosition, SCContent.BLOCK_CHANGE_DETECTOR.get(), AbstractPanelBlock.getConnectedDirection(getBlockState()).getOpposite());
 
 			if (signalLength > 0)
 				level.scheduleTick(worldPosition, SCContent.BLOCK_CHANGE_DETECTOR.get(), signalLength);
@@ -98,25 +97,22 @@ public class BlockChangeDetectorBlockEntity extends DisguisableBlockEntity imple
 	}
 
 	@Override
-	public void saveAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.saveAdditional(tag, lookupProvider);
+	public void saveAdditional(CompoundTag tag) {
+		super.saveAdditional(tag);
 
 		ListTag entryList = new ListTag();
 
 		entries.stream().map(ChangeEntry::save).forEach(entryList::add);
 		tag.putInt("mode", mode.ordinal());
 		tag.put("entries", entryList);
-
-		if (!filter.isEmpty())
-			tag.put("filter", filter.saveOptional(lookupProvider));
-
+		tag.put("filter", filter.save(new CompoundTag()));
 		tag.putBoolean("ShowHighlights", showHighlights);
 		tag.putInt("Color", color);
 	}
 
 	@Override
-	public void loadAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.loadAdditional(tag, lookupProvider);
+	public void load(CompoundTag tag) {
+		super.load(tag);
 
 		int modeOrdinal = tag.getInt("mode");
 
@@ -126,7 +122,7 @@ public class BlockChangeDetectorBlockEntity extends DisguisableBlockEntity imple
 		mode = DetectionMode.values()[modeOrdinal];
 		entries = new ArrayList<>();
 		tag.getList("entries", Tag.TAG_COMPOUND).stream().map(element -> ChangeEntry.load(level, (CompoundTag) element)).forEach(entries::add);
-		filter = Utils.parseOptional(lookupProvider, tag.getCompound("filter"));
+		filter = ItemStack.of(tag.getCompound("filter"));
 		showHighlights = tag.getBoolean("ShowHighlights");
 		setColor(tag.getInt("Color"));
 		updateFilteredEntries();

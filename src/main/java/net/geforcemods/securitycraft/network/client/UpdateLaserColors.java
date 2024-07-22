@@ -2,30 +2,41 @@ package net.geforcemods.securitycraft.network.client;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 
 import net.geforcemods.securitycraft.ClientHandler;
-import net.geforcemods.securitycraft.SecurityCraft;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraftforge.network.NetworkEvent;
 
-public record UpdateLaserColors(List<BlockPos> positionsToUpdate) implements CustomPacketPayload {
-	public static final Type<UpdateLaserColors> TYPE = new Type<>(SecurityCraft.resLoc("update_laser_colors"));
-	//@formatter:off
-	public static final StreamCodec<RegistryFriendlyByteBuf, UpdateLaserColors> STREAM_CODEC = StreamCodec.composite(
-			ByteBufCodecs.collection(ArrayList::new, BlockPos.STREAM_CODEC), UpdateLaserColors::positionsToUpdate,
-			UpdateLaserColors::new);
-	//@formatter:on
+public class UpdateLaserColors {
+	private List<BlockPos> positionsToUpdate;
 
-	@Override
-	public Type<? extends CustomPacketPayload> type() {
-		return TYPE;
+	public UpdateLaserColors() {}
+
+	public UpdateLaserColors(List<BlockPos> positionsToUpdate) {
+		this.positionsToUpdate = positionsToUpdate;
 	}
 
-	public void handle(IPayloadContext ctx) {
+	public UpdateLaserColors(FriendlyByteBuf buf) {
+		int size = buf.readVarInt();
+
+		positionsToUpdate = new ArrayList<>();
+
+		for (int i = 0; i < size; i++) {
+			positionsToUpdate.add(BlockPos.of(buf.readLong()));
+		}
+	}
+
+	public void encode(FriendlyByteBuf buf) {
+		buf.writeVarInt(positionsToUpdate.size());
+
+		for (BlockPos pos : positionsToUpdate) {
+			buf.writeLong(pos.asLong());
+		}
+	}
+
+	public void handle(Supplier<NetworkEvent.Context> ctx) {
 		for (BlockPos pos : positionsToUpdate) {
 			ClientHandler.updateBlockColorAroundPosition(pos);
 		}

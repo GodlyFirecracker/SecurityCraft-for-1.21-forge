@@ -12,9 +12,6 @@ import net.geforcemods.securitycraft.api.Option.IntOption;
 import net.geforcemods.securitycraft.api.Option.SendDenylistMessageOption;
 import net.geforcemods.securitycraft.api.Option.SignalLengthOption;
 import net.geforcemods.securitycraft.api.Owner;
-import net.geforcemods.securitycraft.components.CodebreakerData;
-import net.geforcemods.securitycraft.components.KeycardData;
-import net.geforcemods.securitycraft.components.OwnerData;
 import net.geforcemods.securitycraft.inventory.ItemContainer;
 import net.geforcemods.securitycraft.inventory.KeycardReaderMenu;
 import net.geforcemods.securitycraft.items.CodebreakerItem;
@@ -26,15 +23,13 @@ import net.geforcemods.securitycraft.util.TeamUtils;
 import net.geforcemods.securitycraft.util.Utils;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.ItemInteractionResult;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.MenuProvider;
-import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -62,8 +57,8 @@ public class KeycardReaderBlockEntity extends DisguisableBlockEntity implements 
 	}
 
 	@Override
-	public void saveAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.saveAdditional(tag, lookupProvider);
+	public void saveAdditional(CompoundTag tag) {
+		super.saveAdditional(tag);
 
 		CompoundTag acceptedLevelsTag = new CompoundTag();
 
@@ -76,8 +71,8 @@ public class KeycardReaderBlockEntity extends DisguisableBlockEntity implements 
 	}
 
 	@Override
-	public void loadAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.loadAdditional(tag, lookupProvider);
+	public void load(CompoundTag tag) {
+		super.load(tag);
 
 		//carry over old data
 		if (tag.contains("passLV")) {
@@ -123,20 +118,22 @@ public class KeycardReaderBlockEntity extends DisguisableBlockEntity implements 
 			activate();
 	}
 
-	public ItemInteractionResult onRightClickWithActionItem(ItemStack stack, InteractionHand hand, Player player, boolean isCodebreaker, boolean isKeycardHolder) {
+	public InteractionResult onRightClickWithActionItem(ItemStack stack, InteractionHand hand, Player player, boolean isCodebreaker, boolean isKeycardHolder) {
 		if (isCodebreaker) {
-			double chance = CodebreakerItem.getSuccessChance(stack);
+			double chance = ConfigHandler.SERVER.codebreakerChance.get();
 
 			if (chance < 0.0D)
 				PlayerUtils.sendMessageToPlayer(player, Utils.localize(getBlockState().getBlock().getDescriptionId()), Utils.localize("messages.securitycraft:codebreakerDisabled"), ChatFormatting.RED);
 			else {
-				if (!player.isCreative() && (isOwnedBy(player) || stack.getOrDefault(SCContent.CODEBREAKER_DATA, CodebreakerData.DEFAULT).wasRecentlyUsed()))
-					return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
+				if (!player.isCreative() && (isOwnedBy(player) || CodebreakerItem.wasRecentlyUsed(stack)))
+					return InteractionResult.PASS;
 
 				boolean isSuccessful = player.isCreative() || SecurityCraft.RANDOM.nextDouble() < chance;
+				CompoundTag tag = stack.getOrCreateTag();
 
-				stack.hurtAndBreak(1, player, LivingEntity.getSlotForHand(hand));
-				stack.set(SCContent.CODEBREAKER_DATA, new CodebreakerData(System.currentTimeMillis(), isSuccessful));
+				stack.hurtAndBreak(1, player, p -> p.broadcastBreakEvent(hand));
+				tag.putLong(CodebreakerItem.LAST_USED_TIME, System.currentTimeMillis());
+				tag.putBoolean(CodebreakerItem.WAS_SUCCESSFUL, isSuccessful);
 
 				if (isSuccessful)
 					activate();
@@ -152,11 +149,11 @@ public class KeycardReaderBlockEntity extends DisguisableBlockEntity implements 
 				for (int i = 0; i < holderInventory.getContainerSize(); i++) {
 					ItemStack keycardStack = holderInventory.getItem(i);
 
-					if (keycardStack.getItem() instanceof KeycardItem && keycardStack.has(SCContent.KEYCARD_DATA)) {
+					if (keycardStack.getItem() instanceof KeycardItem && keycardStack.hasTag()) {
 						feedback = insertCard(keycardStack, player);
 
 						if (feedback == null)
-							return ItemInteractionResult.SUCCESS;
+							return InteractionResult.SUCCESS;
 					}
 				}
 
@@ -173,20 +170,19 @@ public class KeycardReaderBlockEntity extends DisguisableBlockEntity implements 
 			}
 		}
 
-		return ItemInteractionResult.SUCCESS;
+		return InteractionResult.SUCCESS;
 	}
 
 	public MutableComponent insertCard(ItemStack stack, Player player) {
-		Owner keycardOwner = stack.getOrDefault(SCContent.OWNER_DATA, OwnerData.DEFAULT).toOwner();
+		CompoundTag tag = stack.getTag();
+		Owner keycardOwner = new Owner(tag.getString("ownerName"), tag.getString("ownerUUID"));
 
 		//owner of this keycard reader and the keycard reader the keycard got linked to do not match
 		if ((ConfigHandler.SERVER.enableTeamOwnership.get() && !TeamUtils.areOnSameTeam(getOwner(), keycardOwner)) || !getOwner().getUUID().equals(keycardOwner.getUUID()))
 			return Component.translatable("messages.securitycraft:keycardReader.differentOwner");
 
-		KeycardData keycardData = stack.getOrDefault(SCContent.KEYCARD_DATA, KeycardData.DEFAULT);
-
 		//the keycard's signature does not match this keycard reader's
-		if (getSignature() != keycardData.signature())
+		if (getSignature() != tag.getInt("signature"))
 			return Component.translatable("messages.securitycraft:keycardReader.wrongSignature");
 
 		int keycardLevel = ((KeycardItem) stack.getItem()).getLevel();
@@ -199,14 +195,14 @@ public class KeycardReaderBlockEntity extends DisguisableBlockEntity implements 
 		boolean powered = level.getBlockState(worldPosition).getValue(BlockStateProperties.POWERED) && getSignalLength() > 0;
 
 		if (!powered) {
-			if (keycardData.limited()) {
-				int usesLeft = keycardData.usesLeft();
+			if (tag.getBoolean("limited")) {
+				int uses = tag.getInt("uses");
 
-				if (usesLeft <= 0)
+				if (uses <= 0)
 					return Component.translatable("messages.securitycraft:keycardReader.noUses");
 
 				if (!player.isCreative())
-					stack.set(SCContent.KEYCARD_DATA, keycardData.setUsesLeft(--usesLeft));
+					tag.putInt("uses", --uses);
 			}
 
 			activate();

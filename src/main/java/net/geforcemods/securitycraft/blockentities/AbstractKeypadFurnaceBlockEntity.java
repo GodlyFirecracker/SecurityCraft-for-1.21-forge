@@ -1,5 +1,6 @@
 package net.geforcemods.securitycraft.blockentities;
 
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.UUID;
@@ -25,7 +26,6 @@ import net.geforcemods.securitycraft.util.PasscodeUtils;
 import net.geforcemods.securitycraft.util.Utils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.Connection;
@@ -45,12 +45,14 @@ import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.entity.ContainerOpenersCounter;
 import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.neoforge.client.model.data.ModelData;
-import net.neoforged.neoforge.items.IItemHandler;
-import net.neoforged.neoforge.items.wrapper.InvWrapper;
-import net.neoforged.neoforge.items.wrapper.SidedInvWrapper;
+import net.minecraftforge.client.model.data.ModelData;
+import net.minecraftforge.common.capabilities.Capability;
+import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.common.util.LazyOptional;
+import net.minecraftforge.items.IItemHandlerModifiable;
 
 public abstract class AbstractKeypadFurnaceBlockEntity extends AbstractFurnaceBlockEntity implements IPasscodeProtected, MenuProvider, IOwnable, IModuleInventory, ICustomizable, ILockable {
+	private LazyOptional<IItemHandlerModifiable>[] insertOnlyHandlers;
 	private Owner owner = new Owner();
 	private byte[] passcode;
 	private UUID saltKey;
@@ -105,11 +107,11 @@ public abstract class AbstractKeypadFurnaceBlockEntity extends AbstractFurnaceBl
 	}
 
 	@Override
-	public void saveAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
+	public void saveAdditional(CompoundTag tag) {
 		long cooldownLeft;
 
-		super.saveAdditional(tag, lookupProvider);
-		writeModuleInventory(tag, lookupProvider);
+		super.saveAdditional(tag);
+		writeModuleInventory(tag);
 		writeModuleStates(tag);
 		writeOptions(tag);
 		cooldownLeft = getCooldownEnd() - System.currentTimeMillis();
@@ -126,10 +128,10 @@ public abstract class AbstractKeypadFurnaceBlockEntity extends AbstractFurnaceBl
 	}
 
 	@Override
-	public void loadAdditional(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.loadAdditional(tag, lookupProvider);
+	public void load(CompoundTag tag) {
+		super.load(tag);
 
-		modules = readModuleInventory(tag, lookupProvider);
+		modules = readModuleInventory(tag);
 		moduleStates = readModuleStates(tag);
 		readOptions(tag);
 		cooldownEnd = System.currentTimeMillis() + tag.getLong("cooldownLeft");
@@ -144,8 +146,8 @@ public abstract class AbstractKeypadFurnaceBlockEntity extends AbstractFurnaceBl
 	}
 
 	@Override
-	public CompoundTag getUpdateTag(HolderLookup.Provider lookupProvider) {
-		return PasscodeUtils.filterPasscodeAndSaltFromTag(saveCustomOnly(lookupProvider));
+	public CompoundTag getUpdateTag() {
+		return PasscodeUtils.filterPasscodeAndSaltFromTag(saveWithoutMetadata());
 	}
 
 	@Override
@@ -154,13 +156,13 @@ public abstract class AbstractKeypadFurnaceBlockEntity extends AbstractFurnaceBl
 	}
 
 	@Override
-	public void onDataPacket(Connection net, ClientboundBlockEntityDataPacket packet, HolderLookup.Provider lookupProvider) {
-		handleUpdateTag(packet.getTag(), lookupProvider);
+	public void onDataPacket(Connection net, ClientboundBlockEntityDataPacket packet) {
+		handleUpdateTag(packet.getTag());
 	}
 
 	@Override
-	public void handleUpdateTag(CompoundTag tag, HolderLookup.Provider lookupProvider) {
-		super.handleUpdateTag(tag, lookupProvider);
+	public void handleUpdateTag(CompoundTag tag) {
+		super.handleUpdateTag(tag);
 		DisguisableBlockEntity.onHandleUpdateTag(this);
 	}
 
@@ -174,11 +176,38 @@ public abstract class AbstractKeypadFurnaceBlockEntity extends AbstractFurnaceBl
 		owner.set(uuid, name);
 	}
 
-	public static IItemHandler getCapability(AbstractKeypadFurnaceBlockEntity be, Direction side) {
-		if (BlockUtils.isAllowedToExtractFromProtectedObject(side, be))
-			return side == null ? new InvWrapper(be) : new SidedInvWrapper(be, side);
+	@Override
+	public <T> LazyOptional<T> getCapability(Capability<T> cap, Direction side) {
+		if (cap == ForgeCapabilities.ITEM_HANDLER)
+			return BlockUtils.isAllowedToExtractFromProtectedObject(side, this) ? super.getCapability(cap, side) : getInsertOnlyHandler(side).cast();
 		else
-			return new InsertOnlySidedInvWrapper(be, side);
+			return super.getCapability(cap, side);
+	}
+
+	@Override
+	public void invalidateCaps() {
+		if (insertOnlyHandlers != null)
+			Arrays.stream(insertOnlyHandlers).forEach(LazyOptional::invalidate);
+
+		super.invalidateCaps();
+	}
+
+	@Override
+	public void reviveCaps() {
+		insertOnlyHandlers = null; //recreated in getInsertOnlyHandler
+		super.reviveCaps();
+	}
+
+	private LazyOptional<IItemHandlerModifiable> getInsertOnlyHandler(Direction side) {
+		if (insertOnlyHandlers == null)
+			insertOnlyHandlers = InsertOnlySidedInvWrapper.create(this, Direction.UP, Direction.DOWN, Direction.NORTH);
+
+		if (side == Direction.UP)
+			return insertOnlyHandlers[0];
+		else if (side == Direction.DOWN)
+			return insertOnlyHandlers[1];
+		else
+			return insertOnlyHandlers[2];
 	}
 
 	@Override

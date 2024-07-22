@@ -2,6 +2,7 @@ package net.geforcemods.securitycraft.items;
 
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 
@@ -12,12 +13,10 @@ import net.geforcemods.securitycraft.misc.CustomDamageSources;
 import net.geforcemods.securitycraft.misc.SCSounds;
 import net.minecraft.client.model.HumanoidModel.ArmPose;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.effect.MobEffectInstance;
-import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
@@ -26,14 +25,12 @@ import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.alchemy.PotionContents;
-import net.minecraft.world.item.alchemy.Potions;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.gameevent.GameEvent;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.client.extensions.common.IClientItemExtensions;
+import net.minecraftforge.client.extensions.common.IClientItemExtensions;
 
 public class TaserItem extends Item {
 	private boolean powered;
@@ -107,9 +104,9 @@ public class TaserItem extends Item {
 				double damage = powered ? ConfigHandler.SERVER.poweredTaserDamage.get() : ConfigHandler.SERVER.taserDamage.get();
 
 				if ((damage == 0.0D || entity.hurt(CustomDamageSources.taser(player), (float) damage)) && !entity.isBlocking()) {
-					List<MobEffectInstance> effects = stack.getOrDefault(DataComponents.POTION_CONTENTS, PotionContents.EMPTY).customEffects();
+					List<Supplier<MobEffectInstance>> effects = powered ? ConfigHandler.SERVER.poweredTaserEffects : ConfigHandler.SERVER.taserEffects;
 
-					effects.forEach(entity::addEffect);
+					effects.forEach(effect -> entity.addEffect(effect.get()));
 				}
 			}
 
@@ -117,11 +114,11 @@ public class TaserItem extends Item {
 				if (powered) {
 					ItemStack taser = new ItemStack(SCContent.TASER.get(), 1);
 
-					taser.hurtAndBreak(150, player, LivingEntity.getSlotForHand(hand));
+					taser.hurtAndBreak(150, player, p -> p.broadcastBreakEvent(hand));
 					player.setItemInHand(hand, taser);
 				}
 				else
-					stack.hurtAndBreak(150, player, LivingEntity.getSlotForHand(hand));
+					stack.hurtAndBreak(150, player, p -> p.broadcastBreakEvent(hand));
 			}
 
 			return InteractionResultHolder.consume(stack);
@@ -141,29 +138,9 @@ public class TaserItem extends Item {
 		return false;
 	}
 
-	public static PotionContents getDefaultEffects() {
-		PotionContents effects = new PotionContents(Potions.WATER);
-
-		effects = effects.withEffectAdded(new MobEffectInstance(MobEffects.WEAKNESS, 200, 1));
-		effects = effects.withEffectAdded(new MobEffectInstance(MobEffects.CONFUSION, 200, 1));
-		effects = effects.withEffectAdded(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 200, 1));
-		return effects;
-	}
-
-	public static PotionContents getDefaultPoweredEffects() {
-		PotionContents effects = new PotionContents(Potions.WATER);
-
-		effects = effects.withEffectAdded(new MobEffectInstance(MobEffects.WEAKNESS, 400, 4));
-		effects = effects.withEffectAdded(new MobEffectInstance(MobEffects.CONFUSION, 400, 4));
-		effects = effects.withEffectAdded(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 400, 4));
-		return effects;
-	}
-
 	@Override
 	public void initializeClient(Consumer<IClientItemExtensions> consumer) {
 		consumer.accept(new IClientItemExtensions() {
-			private static final ArmPose TASER_ARM_POSE = ClientHandler.TASER_ARM_POSE_PARAMS.getValue();
-
 			//first person
 			@Override
 			public boolean applyForgeHandTransform(PoseStack pose, LocalPlayer player, HumanoidArm arm, ItemStack stack, float partialTick, float equippedProgress, float swingProgress) {
@@ -178,7 +155,7 @@ public class TaserItem extends Item {
 			//third person
 			@Override
 			public ArmPose getArmPose(LivingEntity entity, InteractionHand hand, ItemStack stack) {
-				return TASER_ARM_POSE;
+				return ClientHandler.TASER_ARM_POSE;
 			}
 		});
 	}
